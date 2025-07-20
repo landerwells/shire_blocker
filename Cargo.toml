@@ -1,0 +1,18 @@
+[package]
+name = "shire_blocker"
+version = "0.1.0"
+edition = "2024"
+default-run = "shire"
+
+[[bin]]
+name = "shire"
+path = "src/main.rs"
+
+[[bin]]
+name = "shire_bridge"
+path = "src/bin/bridge.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0.0"

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Shire Blocker",
+  "version": "1.0",
+  "description": "Native website blocker",
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "idle",
+    "storage",
+    "notifications",
+    "alarms"
+  ],
+  "content_scripts": [
+    {
+      "run_at": "document_start",
+      "all_frames": true,
+      "js": [
+        "content.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
