@@ -54,8 +54,6 @@ fn install_manifest() -> std::io::Result<()> {
     let manifest_dir = get_manifest_dir();
     fs::create_dir_all(&manifest_dir)?;
 
-    // TODO: No longer the correct path, need to get bridge instead
-    // let exe_path = std::env::current_exe()?.display().to_string();
     let bridge_path = std::env::current_exe()?
         .parent()
         .unwrap()
