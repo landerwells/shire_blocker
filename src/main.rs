@@ -1,56 +1,97 @@
-use std::env;
-use std::io::Read;
-use std::net::{TcpListener, TcpStream};
-
 mod service;
-mod daemon;
 
-fn main() {
-    // Argument parsing
-    let args: Vec<String> = env::args().collect();
-    println!("{args:?}");
+use clap::{Parser, Subcommand};
 
-
-    if let Err(e) = service::install_manifest() {
-        eprintln!("Failed to install manifest: {e}");
-        std::process::exit(1);
-    } else {
-        println!("Manifest installed successfully.");
-    }
-
-    // Further down we will need some branching to listen to multiple things
-    // - config file
-
-    // - messages from bridge
-
-    // Read characters one letter at a time?
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-
-    // let (mut stream, _) = listener.accept().unwrap();
-    
-    for stream in listener.incoming() {
-        handle_client(&mut stream.unwrap());
-    }
-
+#[derive(Parser)]
+#[command(
+    name = "shire",
+    version = "1.0",
+    author = "Your Name",
+    about = "A tool for managing blocks and services"
+)]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn handle_client(stream: &mut TcpStream) {
-    let mut buffer = [0; 512];
+#[derive(Subcommand)]
+enum Commands {
+    /// Manage blocks
+    Block {
+        #[command(subcommand)]
+        action: BlockAction,
+    },
+    /// Manage the shire service
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+}
 
-    loop {
-        match stream.read(&mut buffer) {
-            Ok(0) => break, // Connection closed
-            Ok(n) => {
-                // Process the received data
-                println!("Received {n} bytes");
-                // handle_message(&mut stream, &buffer[..n]);
+#[derive(Subcommand)]
+enum BlockAction {
+    /// List all available blocks
+    List,
+    /// Start a block
+    Start {
+        name: String,
+        #[arg(long)]
+        lock: Option<String>, // e.g. duration
+    },
+    /// Stop a block
+    Stop { name: String },
+}
+
+#[derive(Subcommand)]
+enum ServiceAction {
+    /// Start the shire service (install and start daemon)
+    Start,
+    /// Stop the shire service
+    Stop,
+    /// Restart the shire service
+    Restart,
+    /// Install service dependencies (e.g. plist)
+    Install,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    match args.command {
+        Commands::Block { action } => match action {
+            BlockAction::List => {
+                println!("Listing all available blocks...");
+                // TODO: Implement block listing
             }
-            Err(e) => {
-                eprintln!("Failed to read from stream: {e}");
-                break;
+            BlockAction::Start { name, lock } => {
+                println!("Starting block: {}", name);
+                if let Some(lock_duration) = lock {
+                    println!("Lock duration: {}", lock_duration);
+                }
+                // TODO: Implement block start
             }
-        }
+            BlockAction::Stop { name } => {
+                println!("Stopping block: {}", name);
+                // TODO: Implement block stop
+            }
+        },
+        Commands::Service { action } => match action {
+            ServiceAction::Start => {
+                println!("Starting shire service (install and start daemon)...");
+                // TODO: Implement service start
+            }
+            ServiceAction::Stop => {
+                println!("Stopping shire service...");
+                // TODO: Implement service stop
+            }
+            ServiceAction::Restart => {
+                println!("Restarting shire service...");
+                // TODO: Implement service restart
+            }
+            ServiceAction::Install => {
+                println!("Installing service dependencies...");
+                // TODO: Implement service install
+            }
+        },
     }
-    println!("Received: {}", String::from_utf8_lossy(&buffer));
-
 }

@@ -1,3 +1,8 @@
+TODO
+- Rename extension to shire_extension
+- Possibly break things out into workspaces if it gets too cluttered
+
+
 MVP
 - Config file (no hotload yet)
 - Commands for CLI

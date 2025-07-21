@@ -41,8 +41,6 @@ shire service stop # stops the daemon if there is one running
 shire service restart
 shire service install # installs needed things like plist and 
 
-shire daemon
-
 
 
 
