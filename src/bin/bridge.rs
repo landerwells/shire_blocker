@@ -41,10 +41,17 @@
 //     Ok(())
 // }
 
-use std::net::TcpStream;
+use std::io;
 use std::io::Write;
+use std::net::TcpStream;
 
-fn main() {
+fn main() -> io::Result<()> {
+
+    let mut buffer: String = String::new();
+    io::stdin().read_line(&mut buffer)?;
+
     let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
-    stream.write_all(b"Hello from client").unwrap();
+    stream.write_all(buffer.as_bytes()).unwrap();
+
+    Ok(())
 }
