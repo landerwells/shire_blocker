@@ -2,12 +2,11 @@ function sendUrlToNative(url) {
   browser.runtime.sendNativeMessage(
     "com.shire_blocker",
     { url: url }
-  )
-    // .then((response) => {
-    //   console.log("Native response:", response);
-    // }).catch((error) => {
-    //   console.error("Failed to send native message:", error);
-    // });
+  ).then((response) => {
+    console.log("Native response:", response);
+  }).catch((error) => {
+    console.error("Failed to send native message:", error);
+  });
 }
 
 function handleTabActivated(activeInfo) {

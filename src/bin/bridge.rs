@@ -41,17 +41,45 @@
 //     Ok(())
 // }
 
-use std::io;
+// use std::io;
+// use std::net::TcpStream;
+//
+// fn main() -> io::Result<()> {
+//
+//     let mut buffer: String = String::new();
+//     io::stdin().read_line(&mut buffer)?;
+//
+//     let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
+//     // stream.write_all(buffer.as_bytes()).unwrap();
+//     stream.write_all(b"Hello world").unwrap();
+//
+//     io::stdout().write_all(b"hello world")?;
+//
+//     Ok(())
+// }
+
 use std::io::Write;
+use std::io::{self, Read};
 use std::net::TcpStream;
 
 fn main() -> io::Result<()> {
+    let stdin = io::stdin();
+    let mut handle = stdin.lock();
 
-    let mut buffer: String = String::new();
-    io::stdin().read_line(&mut buffer)?;
+    // Read the 4-byte length prefix
+    let mut len_buf = [0u8; 4];
+    handle.read_exact(&mut len_buf)?;
 
-    let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
-    stream.write_all(buffer.as_bytes()).unwrap();
+    let msg_len = u32::from_le_bytes(len_buf);
+    let mut msg_buf = vec![0u8; msg_len as usize];
+    handle.read_exact(&mut msg_buf)?;
+
+    let json_str = String::from_utf8(msg_buf).unwrap();
+    // println!("Received: {}", json_str);
+
+    // Send to daemon via TCP
+    let mut stream = TcpStream::connect("127.0.0.1:7878")?;
+    stream.write_all(json_str.as_bytes())?;
 
     Ok(())
 }

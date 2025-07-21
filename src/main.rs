@@ -1,11 +1,17 @@
+use std::env;
 use std::io::Read;
-use std::net::TcpListener;
-mod manifest_setup;
+use std::net::{TcpListener, TcpStream};
+
+mod service;
+mod daemon;
 
 fn main() {
-    // Likely will want a setup function to install the manifest
+    // Argument parsing
+    let args: Vec<String> = env::args().collect();
+    println!("{args:?}");
 
-    if let Err(e) = manifest_setup::install_manifest() {
+
+    if let Err(e) = service::install_manifest() {
         eprintln!("Failed to install manifest: {e}");
         std::process::exit(1);
     } else {
@@ -14,12 +20,21 @@ fn main() {
 
     // Further down we will need some branching to listen to multiple things
     // - config file
+
     // - messages from bridge
 
     // Read characters one letter at a time?
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
-    let (mut stream, _) = listener.accept().unwrap();
+    // let (mut stream, _) = listener.accept().unwrap();
+    
+    for stream in listener.incoming() {
+        handle_client(&mut stream.unwrap());
+    }
+
+}
+
+fn handle_client(stream: &mut TcpStream) {
     let mut buffer = [0; 512];
 
     loop {
@@ -36,8 +51,6 @@ fn main() {
             }
         }
     }
-
     println!("Received: {}", String::from_utf8_lossy(&buffer));
 
 }
-
