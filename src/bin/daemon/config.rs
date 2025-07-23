@@ -16,22 +16,25 @@ pub struct Settings {
     pub strict_mode: Option<bool>, // optional
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Deserialize)]
 pub struct Block {
     pub name: String,
+    pub active_by_default: bool,
     pub whitelist: Option<Vec<String>>,
     pub blacklist: Option<Vec<String>>,
 }
 
+// I leave scheduling in for now, but I am not going to work on that feature for
+// the first release.
 #[derive(Debug, Deserialize)]
 pub struct Schedule {
     pub block: String,
     pub days: Vec<String>,
-    pub start: String, // you can use chrono::NaiveTime if you want stricter typing
+    pub start: String,
     pub end: String,
 }
 
-pub fn parse_config() -> Result<(), Box<dyn std::error::Error>> {
+pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     let path = format!(
         "{}/.config/shire/shire.toml",
         std::env::var("HOME")?
@@ -40,7 +43,6 @@ pub fn parse_config() -> Result<(), Box<dyn std::error::Error>> {
     let contents = fs::read_to_string(path)?;
     let config: Config = toml::from_str(&contents)?;
 
-    // println!("{:#?}", config);
+    Ok(config)
 
-    Ok(())
 }
