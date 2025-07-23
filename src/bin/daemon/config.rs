@@ -19,7 +19,7 @@ pub struct Settings {
 #[derive(PartialEq, Eq, Hash, Debug, Deserialize)]
 pub struct Block {
     pub name: String,
-    pub active_by_default: bool,
+    pub active_by_default: Option<bool>,
     pub whitelist: Option<Vec<String>>,
     pub blacklist: Option<Vec<String>>,
 }

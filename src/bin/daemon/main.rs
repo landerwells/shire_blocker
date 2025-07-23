@@ -11,9 +11,10 @@ fn main() {
 
     let mut active_blocks: HashSet<Block> = HashSet::new();
     // populate active_blocks with the blocks that are set to be true on startup
+    // Default strategy would be to disable all blocks?
     for block in config.blocks {
-        if block.active_by_default {
-            active_blocks.insert(block);
+        if let Some(true) = block.active_by_default {
+                active_blocks.insert(block);
         }
     }
     println!("Active blocks: {:?}", active_blocks);
