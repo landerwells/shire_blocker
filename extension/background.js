@@ -28,3 +28,5 @@ browser.tabs.onActivated.addListener(handleTabActivated);
 
 // Fires when a tab's URL changes
 browser.tabs.onUpdated.addListener(handleTabUpdated);
+
+// Eventually will need to handle currently active tab.
