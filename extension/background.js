@@ -1,11 +1,25 @@
 function sendUrlToNative(url) {
-  browser.runtime.sendNativeMessage(
+  return browser.runtime.sendNativeMessage(
     "com.shire_blocker",
     { url: url }
   ).then((response) => {
     console.log("Native response:", response);
+
+    // Handle the response from the native host
+    if (response && response.status === "blocked") {
+      console.log("Site is blocked:", url);
+      return { blocked: true, url: url };
+    } else if (response && response.status === "allowed") {
+      console.log("Site is allowed:", url);
+      return { blocked: false, url: url };
+    } else if (response && response.status === "error") {
+      console.error("Error from native host:", response.message);
+      return { blocked: false, url: url, error: response.message };
+    }
+    return { blocked: false, url: url };
   }).catch((error) => {
     console.error("Failed to send native message:", error);
+    return { blocked: false, url: url, error: error.message };
   });
 }
 
@@ -29,4 +43,15 @@ browser.tabs.onActivated.addListener(handleTabActivated);
 // Fires when a tab's URL changes
 browser.tabs.onUpdated.addListener(handleTabUpdated);
 
-// Eventually will need to handle currently active tab.
+// Listen for messages from content scripts
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "checkBlocked") {
+    // Check if the URL is blocked
+    sendUrlToNative(message.url).then((result) => {
+      sendResponse(result);
+    });
+    return true; // Keep the message channel open for async response
+  }
+});
+
+console.log("Background.js has started!");
