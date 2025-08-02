@@ -1,19 +1,10 @@
 use std::io::Write;
 use std::io::{self, Read};
 use std::net::TcpStream;
+use serde_json::json;
 
-fn read_message() -> io::Result<String> {
-    let mut length_buf = [0u8; 4];
-    io::stdin().read_exact(&mut length_buf)?;
-    let length = u32::from_le_bytes(length_buf);
 
-    let mut message_buf = vec![0u8; length as usize];
-    io::stdin().read_exact(&mut message_buf)?;
-
-    let message = String::from_utf8(message_buf).expect("Invalid UTF-8 message");
-    Ok(message)
-}
-
+/// Writes a message to stdout in the Native Messaging protocol format.
 fn write_message(message: &str) -> io::Result<()> {
     let bytes = message.as_bytes();
     let len = bytes.len() as u32;
@@ -24,16 +15,35 @@ fn write_message(message: &str) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
-    let json_sring = read_message()?;
+    // Read message in from stdin from extension
+    let stdin = io::stdin();
+    let mut handle = stdin.lock();
 
+    // Read the 4-byte length prefix
+    let mut len_buf = [0u8; 4];
+    handle.read_exact(&mut len_buf)?;
+
+    let msg_len = u32::from_le_bytes(len_buf);
+    let mut msg_buf = vec![0u8; msg_len as usize];
+    handle.read_exact(&mut msg_buf)?;
+
+    let json_sring = String::from_utf8(msg_buf).unwrap();
+    // 
+
+    // Send to daemon via TCP
     let mut stream = TcpStream::connect("127.0.0.1:7878")?;
     stream.write_all(json_sring.as_bytes())?;
 
-    // let youtube = "https://www.youtube.com/";
+    let youtube = "https://www.youtube.com/";
 
-    // if &json_sring[4..] == youtube {
-    //     // Send message back to the application???? Using stdout
-    // }
+    if &json_sring[4..] == youtube {
+        // Send message back to the application???? Using stdout
+
+    }
+    let response_json = json!({
+        "status": "ok",
+        "message": "Message received and processed"
+    });
 
     // Get message back from daemon,
     // let mut response_buf = vec![0u8; 4];
@@ -41,8 +51,7 @@ fn main() -> io::Result<()> {
     // let response_len = u32::from_le_bytes(response_buf);
 
     // Write a message back to the extension
-    let response_message = "Message received and processed";
-    write_message(response_message)?;
+    write_message(&response_json.to_string())?;
 
     Ok(())
 }

@@ -1,17 +1,17 @@
-use std::{collections::HashSet, io::Read};
+// use once_cell::sync::Lazy;
 use crate::config::Block;
+use serde_json::Value;
 use std::net::{TcpListener, TcpStream};
+use std::{collections::HashSet, io::Read};
+use std::io::prelude::*;
+use url::Url;
 
 mod config;
 
 fn main() {
-    // When first starting up the daemon, the only blocks that will be 
-    // enabled will be
     let config = config::parse_config().unwrap();
-
     let mut active_blocks: HashSet<Block> = HashSet::new();
-    // populate active_blocks with the blocks that are set to be true on startup
-    // Default strategy would be to disable all blocks?
+
     for block in config.blocks {
         if let Some(true) = block.active_by_default {
             active_blocks.insert(block);
@@ -26,31 +26,49 @@ fn main() {
     // the CLI, or waiting on input from browser.
 
     for stream in listener.incoming() {
-        let url = handle_client(&mut stream.unwrap());
-        // Still need to 
-        let mut block_site = false;
-        
-        // Need more complex logic on whether the block should go through.
- 
-        // if is_blacklisted(active_blocks, url) && !is_whitelisted() {
-        //     // Send a message back through the TCPListener
-        //
-        // }
-        // Check if the URL is in the blacklist of any block
-        if active_blocks.iter().any(|block| {
-            block.blacklist.as_ref().is_some_and(|blacklist| {
-                blacklist.iter().any(|b| url.contains(b))
-            })
-        }) {
-            println!("Blocked URL: {}", url);
-            // Here you would handle the blocking logic, e.g., sending a response
-            // to the client or logging the blocked request.
-        } else {
-            println!("Allowed URL: {}", url);
-            // Handle allowed URL logic here.
-        }
+        let mut stream = stream.unwrap(); // Unwrap once and reuse `stream`
 
+        let json_str = handle_client(&mut stream).trim_matches('\0').to_string();
+        let v: Value = serde_json::from_str(json_str.trim()).unwrap();
+
+        let url = Url::parse(v["url"].as_str().unwrap_or("")).unwrap();
+        let mut url_string = url.as_str().to_string();
+
+        println!("Received URL: {}", url_string);
+
+        url_string = remove_http_www(url_string);
+
+        if is_blacklisted(&active_blocks, &url_string) {
+            // Send a message back through the TCP
+            println!("Blocked URL: {}", url_string);
+            // Send a 1 to indicate the URL is blocked
+            let _ = stream.write_all(&[1]);
+        } else {
+            println!("Allowed URL: {}", url_string);
+            // Send a 0 to indicate the URL is allowed
+            let _ = stream.write_all(&[0]);
+        }
     }
+}
+
+fn remove_http_www(mut url_string: String) -> String {
+    if url_string.starts_with("https://") {
+        url_string = url_string.strip_prefix("https://").unwrap().to_string();
+    }
+
+    if url_string.starts_with("www.") {
+        url_string = url_string.strip_prefix("www.").unwrap().to_string();
+    }
+
+    url_string
+}
+
+fn is_blacklisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
+    active_blocks.iter().any(|block| {
+        block.blacklist.as_ref().is_some_and(|blacklist| {
+            blacklist.iter().any(|b| url.starts_with(b))
+        })
+    })
 }
 
 fn handle_client(stream: &mut TcpStream) -> String {
@@ -58,11 +76,9 @@ fn handle_client(stream: &mut TcpStream) -> String {
 
     loop {
         match stream.read(&mut buffer) {
-            Ok(0) => break, // Connection closed
+            Ok(0) => break,
             Ok(n) => {
-                // Process the received data
                 println!("Received {n} bytes");
-                // handle_message(&mut stream, &buffer[..n]);
             }
             Err(e) => {
                 eprintln!("Failed to read from stream: {e}");
@@ -70,7 +86,6 @@ fn handle_client(stream: &mut TcpStream) -> String {
             }
         }
     }
-    println!(" {}", String::from_utf8_lossy(&buffer));
     String::from_utf8_lossy(&buffer).to_string()
 }
 
@@ -82,9 +97,6 @@ mod tests {
 
     #[test]
     fn test_blacklist() {
-        // Need to generate a test file possibly, so that way I don't have to 
-        // rely on having the correct config.
-
         let config = config::parse_config().unwrap();
 
         let blocks = config.blocks;
@@ -93,11 +105,45 @@ mod tests {
         // Check if the URL is in the blacklist of any block
         assert!(
             blocks.iter().any(|block| {
-                block.blacklist.as_ref().map_or(false, |blacklist| {
+                block.blacklist.as_ref().is_some_and(|blacklist| {
                     blacklist.iter().any(|b| url.contains(b))
                 })
             }),
             "URL should be blocked"
         );
+    }
+
+    #[test]
+    fn test_parse_json() {
+        let json_str = r#"{"url":"https://www.google.com/search?client=firefox-b-1-d&q=json+parser+rust"}"#;
+
+        let v: Value = serde_json::from_str(json_str).unwrap_or_else(|_| {
+            eprintln!("Failed to parse JSON: {}", json_str);
+            Value::Null
+        });
+        assert_eq!(v["url"], "https://www.google.com/search?client=firefox-b-1-d&q=json+parser+rust");
+
+        // Test with an invalid JSON string
+        let invalid_json_str = r#"{"url": "https://www.example.com""#;
+        let v_invalid: Value = serde_json::from_str(invalid_json_str).unwrap_or_else(|_| {
+            eprintln!("Failed to parse JSON: {}", invalid_json_str);
+            Value::Null
+        });
+        assert!(v_invalid.is_null());
+    }
+
+    #[test]
+    fn test_remove_http_www() {
+        let url_with_http = "https://www.example.com".to_string();
+        let url_without_http = remove_http_www(url_with_http);
+        assert_eq!(url_without_http, "example.com".to_string());
+
+        let url_with_https = "https://example.com".to_string();
+        let url_without_https = remove_http_www(url_with_https);
+        assert_eq!(url_without_https, "example.com".to_string());
+
+        let url_with_www = "www.example.com".to_string();
+        let url_without_www = remove_http_www(url_with_www);
+        assert_eq!(url_without_www, "example.com".to_string());
     }
 }

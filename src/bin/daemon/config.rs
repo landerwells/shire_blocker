@@ -5,7 +5,7 @@ use serde::Deserialize;
 pub struct Config {
     pub settings: Settings,
     pub blocks: Vec<Block>,
-    pub schedule: Vec<Schedule>,
+    // pub schedule: Vec<Schedule>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,13 +26,13 @@ pub struct Block {
 
 // I leave scheduling in for now, but I am not going to work on that feature for
 // the first release.
-#[derive(Debug, Deserialize)]
-pub struct Schedule {
-    pub block: String,
-    pub days: Vec<String>,
-    pub start: String,
-    pub end: String,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct Schedule {
+//     pub block: String,
+//     pub days: Vec<String>,
+//     pub start: String,
+//     pub end: String,
+// }
 
 pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     let path = format!(
@@ -46,3 +46,17 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(config)
 
 }
+
+// Eventually will want to write or generate tests to make sure the parsing is 
+// handled correctly, and that the daemon handles incorrectly formatted
+// configurations gracefully.
+//
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//
+//     #[test]
+//     fn test_name() {
+//
+//     }
+// }
