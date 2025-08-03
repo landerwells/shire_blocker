@@ -1,6 +1,8 @@
+mod commands;
 mod service;
-
 use clap::{Parser, Subcommand};
+use commands::list_available_blocks;
+use std::os::unix::net::UnixStream;
 
 #[derive(Parser)]
 #[command(
@@ -62,12 +64,25 @@ fn main() {
     //     .build();
     // srhd::service::install(&service).unwrap();
 
+    let socket_path = "/tmp/shire_cli.sock";
+
+    let mut cli_sock = match UnixStream::connect(socket_path) {
+        Ok(sock) => sock,
+        Err(e) => {
+            eprintln!(
+                "Failed to connect to Shire daemon at '{socket_path}': {e}.\n\
+                 Is the daemon running?");
+            return;
+        }
+    };
+
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
-                println!("Listing all available blocks...");
                 // TODO: Implement block listing
-                // Send message to the daemon to list all of the blocks
+                // println!("Listing all available blocks...");
+                // I want the printing to be similar to something like gh repo list
+                list_available_blocks(&mut cli_sock).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
                 println!("Starting block: {}", name);

@@ -5,7 +5,7 @@ use std::io::prelude::*;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::{collections::HashSet, io::Read};
-use url::Url;
+use std::thread;
 
 mod config;
 
@@ -26,43 +26,53 @@ fn main() {
     }
     // println!("Active blocks: {:?}", active_blocks);
 
-    // Will need to have multiple listeners, one for 
-
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
 
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    // Spawn two threads, one for the bridge and one for the CLI.
-    //
-    // At this point, there are three things that we will end up waiting on,
-    // or need to figure out. Waiting on config to change, waiting on input from
-    // the CLI, or waiting on input from browser.
-
-    for stream in bridge_listener.incoming() {
-        let mut stream = stream.unwrap(); // Unwrap once and reuse `stream`
-
-        if let Some(json_str) = handle_client(&mut stream) {
-            let v: Value = serde_json::from_str(json_str.trim()).unwrap();
-
-            let url = Url::parse(v["url"].as_str().unwrap_or("")).unwrap();
-            let mut url_string = url.as_str().to_string();
-
-            println!("Received URL: {}", url_string);
-
-            url_string = remove_http_www(url_string);
-
-            if is_blacklisted(&active_blocks, &url_string) {
-                println!("Blocked URL: {}", url_string);
-                // Send a 1 to indicate the URL is blocked
-                let _ = stream.write_all(&[1]);
-            } else {
-                println!("Allowed URL: {}", url_string);
-                // Send a 0 to indicate the URL is allowed
-                let _ = stream.write_all(&[0]);
+    let active_blocks_clone = active_blocks.clone();
+    thread::spawn(move || {
+        for stream in bridge_listener.incoming() {
+            match stream {
+                Ok(mut stream) => {
+                    handle_bridge_request(&mut stream, &active_blocks_clone);
+                }
+                Err(e) => eprintln!("Bridge connection failed: {e}"),
             }
         }
+    });
+
+    for stream in cli_listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                let blocks = active_blocks.clone();
+                thread::spawn(move || handle_cli_request(&mut stream, &blocks));
+            }
+            Err(e) => eprintln!("CLI connection failed: {e}"),
+        }
+    }
+}
+
+fn handle_cli_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>) {
+    if let Some(json_str) = handle_client(stream) {
+        let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
+            eprintln!("Invalid JSON from CLI.");
+            serde_json::json!({})
+        });
+
+        let url = v["url"].as_str().unwrap_or("").to_string();
+        let url = remove_http_www(url);
+
+        let allowed = !is_blacklisted(active_blocks, &url);
+        println!(
+            "{} URL from CLI: {}",
+            if allowed { "Allowed" } else { "Blocked" },
+            url
+        );
+
+        let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
     }
 }
 
@@ -87,6 +97,7 @@ fn is_blacklisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
     })
 }
 
+// What would be a better name for this function?
 fn handle_client(stream: &mut UnixStream) -> Option<String> {
     // Read 4-byte length prefix
     let mut length_buf = [0u8; 4];
@@ -106,6 +117,27 @@ fn handle_client(stream: &mut UnixStream) -> Option<String> {
     let message = String::from_utf8_lossy(&buffer).to_string();
     println!("Received message: {}", message);
     Some(message)
+}
+
+fn handle_bridge_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>) {
+    if let Some(json_str) = handle_client(stream) {
+        let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
+            eprintln!("Invalid JSON from bridge.");
+            serde_json::json!({})
+        });
+
+        let url = v["url"].as_str().unwrap_or("").to_string();
+        let url = remove_http_www(url);
+
+        let allowed = !is_blacklisted(active_blocks, &url);
+        println!(
+            "{} URL from bridge: {}",
+            if allowed { "Allowed" } else { "Blocked" },
+            url
+        );
+
+        let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
+    }
 }
 
 #[cfg(test)]

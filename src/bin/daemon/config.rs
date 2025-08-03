@@ -3,20 +3,20 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub settings: Settings,
+    // pub settings: Settings,
     pub blocks: Vec<Block>,
     // pub schedule: Vec<Schedule>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Settings {
-    pub default_action: String,
-    pub log_violations: bool,
-    pub notify_on_block: bool,
-    pub strict_mode: Option<bool>, // optional
-}
+// #[derive(Debug, Deserialize)]
+// pub struct Settings {
+//     pub default_action: String,
+//     pub log_violations: bool,
+//     pub notify_on_block: bool,
+//     pub strict_mode: Option<bool>, // optional
+// }
 
-#[derive(PartialEq, Eq, Hash, Debug, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Deserialize, Clone)]
 pub struct Block {
     pub name: String,
     pub active_by_default: Option<bool>,
