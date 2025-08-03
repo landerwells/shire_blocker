@@ -1,6 +1,8 @@
+use serde::Serialize;
+use std::path::PathBuf;
 use std::{fs, io::Error};
 
-pub fn install(ctl: &launchctl::Service) -> Result<(), Error> {
+pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let plist = format!(
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
@@ -36,16 +38,23 @@ pub fn install(ctl: &launchctl::Service) -> Result<(), Error> {
         std::env::current_exe().unwrap().to_str().unwrap()
     );
 
-    Ok(fs::write(ctl.plist_path.clone(), plist)?)
+    fs::write(ctl.plist_path.clone(), plist)
 }
 
-// out of use currently
-// pub fn uninstall(path: String) -> Result<(), Error> {
-//     Ok(fs::remove_file(path)?)
-// }
+// I think I could create a function here that would allow seemless installation
+// of both the manifest and the launchctl service
+pub fn install() -> Result<(), Error> {
+    let ctl = launchctl::Service::builder()
+        .name("com.sylvanfranklin.srhd")
+        .build();
 
-use serde::Serialize;
-use std::path::PathBuf;
+    install_ctl(&ctl)?;
+    install_manifest()?;
+
+    // Start the service
+    ctl.start()?;
+    Ok(())
+}
 
 #[derive(Serialize)]
 struct Manifest<'a> {

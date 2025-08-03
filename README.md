@@ -15,14 +15,10 @@ There would be config delay updat
 Another killer feature would be to sync across devices???? I understand the 
 config would handle that, but syncing locks would be satisfying
 
-
-
-
 ### Work on tomorrow
-- Formalize the message sending back to the browser
-- Set up the display page for when the user tries to access a blocked site
-- Installing the plist file for launchd
-- Build a page for when the user tries to access a blocked site
+- CLI integration with daemon, and how those will interact
+- Installing on MacOS (plist file for launchd)
+- Installing on Linux (systemd service)
 
 ### Features
 Before release

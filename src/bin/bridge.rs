@@ -24,6 +24,13 @@ fn write_message(message: &str) -> io::Result<()> {
     Ok(())
 }
 
+// {
+//   "source": "bridge",
+//   "type": "url-check",
+//   "payload": { "url": "youtube.com" }
+// }
+// I think this is the only real function that needs to change, as it will be
+// getting converted to use a Unix socket
 fn send_to_daemon(message: &str) -> io::Result<bool> {
     let mut stream = TcpStream::connect("127.0.0.1:7878")?;
 
@@ -35,6 +42,8 @@ fn send_to_daemon(message: &str) -> io::Result<bool> {
     stream.flush()?;
 
     // Read single byte response from daemon
+    // This will no longer be a single byte response but that shouldn't make the
+    // resulting output any different, there will just need to be more parsing.
     let mut response_buf = [0u8; 1];
     stream.read_exact(&mut response_buf)?;
 
@@ -43,7 +52,7 @@ fn send_to_daemon(message: &str) -> io::Result<bool> {
 
 fn main() -> io::Result<()> {
     let json_string = read_message()?;
-    eprintln!("Bridge received: {}", json_string);
+    eprintln!("Bridge received: {json_string}");
 
     match send_to_daemon(&json_string) {
         Ok(is_blocked) => {
@@ -68,7 +77,7 @@ fn main() -> io::Result<()> {
             }
         }
         Err(e) => {
-            eprintln!("Failed to communicate with daemon: {}", e);
+            eprintln!("Failed to communicate with daemon: {e}");
             write_message(
                 &json!({
                     "status": "error",

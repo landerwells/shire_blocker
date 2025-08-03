@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "shire",
     version = "1.0",
-    author = "Your Name",
+    author = "Lander Wells",
     about = "A tool for managing blocks and services"
 )]
 struct Args {
@@ -57,11 +57,17 @@ enum ServiceAction {
 fn main() {
     let args = Args::parse();
 
+    // let service = launchctl::Service::builder()
+    //     .name("com.sylvanfranklin.srhd")
+    //     .build();
+    // srhd::service::install(&service).unwrap();
+
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
                 println!("Listing all available blocks...");
                 // TODO: Implement block listing
+                // Send message to the daemon to list all of the blocks
             }
             BlockAction::Start { name, lock } => {
                 println!("Starting block: {}", name);
@@ -78,6 +84,7 @@ fn main() {
         Commands::Service { action } => match action {
             ServiceAction::Start => {
                 println!("Starting shire service (install and start daemon)...");
+                let _ = service::install();
                 // TODO: Implement service start
             }
             ServiceAction::Stop => {
