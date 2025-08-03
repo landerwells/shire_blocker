@@ -1,14 +1,21 @@
-// use once_cell::sync::Lazy;
 use crate::config::Block;
 use serde_json::Value;
+use std::fs;
 use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream};
+use std::os::unix::net::UnixListener;
+use std::os::unix::net::UnixStream;
 use std::{collections::HashSet, io::Read};
 use url::Url;
 
 mod config;
 
+const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
+const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
+
 fn main() {
+    // Maybe think of putting the config parsing in a separate function named
+    // initialize_config or something similar. That way we can hotload the
+    // config if we want to.
     let config = config::parse_config().unwrap();
     let mut active_blocks: HashSet<Block> = HashSet::new();
 
@@ -17,15 +24,23 @@ fn main() {
             active_blocks.insert(block);
         }
     }
-    println!("Active blocks: {:?}", active_blocks);
+    // println!("Active blocks: {:?}", active_blocks);
 
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    // Will need to have multiple listeners, one for 
 
+    let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
+    let _ = fs::remove_file(CLI_SOCKET_PATH);
+
+    let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
+    let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
+
+    // Spawn two threads, one for the bridge and one for the CLI.
+    //
     // At this point, there are three things that we will end up waiting on,
     // or need to figure out. Waiting on config to change, waiting on input from
     // the CLI, or waiting on input from browser.
 
-    for stream in listener.incoming() {
+    for stream in bridge_listener.incoming() {
         let mut stream = stream.unwrap(); // Unwrap once and reuse `stream`
 
         if let Some(json_str) = handle_client(&mut stream) {
@@ -39,7 +54,6 @@ fn main() {
             url_string = remove_http_www(url_string);
 
             if is_blacklisted(&active_blocks, &url_string) {
-                // Send a message back through the TCP
                 println!("Blocked URL: {}", url_string);
                 // Send a 1 to indicate the URL is blocked
                 let _ = stream.write_all(&[1]);
@@ -73,7 +87,7 @@ fn is_blacklisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
     })
 }
 
-fn handle_client(stream: &mut TcpStream) -> Option<String> {
+fn handle_client(stream: &mut UnixStream) -> Option<String> {
     // Read 4-byte length prefix
     let mut length_buf = [0u8; 4];
     if let Err(e) = stream.read_exact(&mut length_buf) {

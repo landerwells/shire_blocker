@@ -1,7 +1,7 @@
 use serde_json::json;
 use std::io::Write;
 use std::io::{self, Read};
-use std::net::TcpStream;
+use std::os::unix::net::UnixStream;
 
 fn read_message() -> io::Result<String> {
     let mut length_buf = [0u8; 4];
@@ -24,15 +24,11 @@ fn write_message(message: &str) -> io::Result<()> {
     Ok(())
 }
 
-// {
-//   "source": "bridge",
-//   "type": "url-check",
-//   "payload": { "url": "youtube.com" }
-// }
-// I think this is the only real function that needs to change, as it will be
-// getting converted to use a Unix socket
+// I think that send_to_daemon is a bad name for this function, would like to
+// update at some point and also change the return value to something more 
+// readable and actionable.
 fn send_to_daemon(message: &str) -> io::Result<bool> {
-    let mut stream = TcpStream::connect("127.0.0.1:7878")?;
+    let mut stream = UnixStream::connect("/tmp/shire_bridge.sock")?;
 
     // Send length-prefixed message to daemon
     let bytes = message.as_bytes();
@@ -42,8 +38,6 @@ fn send_to_daemon(message: &str) -> io::Result<bool> {
     stream.flush()?;
 
     // Read single byte response from daemon
-    // This will no longer be a single byte response but that shouldn't make the
-    // resulting output any different, there will just need to be more parsing.
     let mut response_buf = [0u8; 1];
     stream.read_exact(&mut response_buf)?;
 
