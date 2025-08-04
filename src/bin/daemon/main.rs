@@ -12,6 +12,8 @@ mod config;
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
+// I like the idea of a single app state that I can pass into the cli or 
+// bridge thread. 
 fn main() {
     // Maybe think of putting the config parsing in a separate function named
     // initialize_config or something similar. That way we can hotload the
@@ -24,7 +26,7 @@ fn main() {
             active_blocks.insert(block);
         }
     }
-    // println!("Active blocks: {:?}", active_blocks);
+    println!("Active blocks: {:?}", active_blocks);
 
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
@@ -44,6 +46,9 @@ fn main() {
         }
     });
 
+    // I think at least for the cli I will need to pass all of the blocks
+    // instead of just the active ones. I essentially need to print the entire
+    // configuration to the user.
     for stream in cli_listener.incoming() {
         match stream {
             Ok(mut stream) => {
@@ -56,23 +61,47 @@ fn main() {
 }
 
 fn handle_cli_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>) {
-    if let Some(json_str) = handle_client(stream) {
+    if let Some(json_str) = read_length_prefixed_message(stream) {
         let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
             eprintln!("Invalid JSON from CLI.");
             serde_json::json!({})
         });
 
-        let url = v["url"].as_str().unwrap_or("").to_string();
-        let url = remove_http_www(url);
+        match v["action"].as_str() {
+            Some("list_blocks") => {
+                let blocks: Vec<String> = active_blocks
+                    .iter()
+                    .map(|block| block.name.clone())
+                    .collect();
+                let response = serde_json::json!({ "blocks": blocks });
+                let response_str = response.to_string();
+                let bytes = response_str.as_bytes();
+                let len = bytes.len() as u32;
+                let _ = stream.write_all(&len.to_le_bytes());
+                let _ = stream.write_all(bytes);
+            }
+            // Some("toggle_block") => {
+            //     if let Some(name) = v["name"].as_str() {
+            //         if let Some(block) = active_blocks.iter().find(|b| b.name == name) {
+            //             // Toggle the block's active state
+            //             if active_blocks.contains(block) {
+            //                 active_blocks.remove(block);
+            //                 println!("Block '{}' deactivated.", name);
+            //             } else {
+            //                 active_blocks.insert(block.clone());
+            //                 println!("Block '{}' activated.", name);
+            //             }
+            //         } else {
+            //             eprintln!("Block '{}' not found.", name);
+            //         }
+            //     } else {
+            //         eprintln!("No block name provided.");
+            //     }
+            // }
+            _ => eprintln!("Unknown action in CLI request."),
+        }
 
-        let allowed = !is_blacklisted(active_blocks, &url);
-        println!(
-            "{} URL from CLI: {}",
-            if allowed { "Allowed" } else { "Blocked" },
-            url
-        );
-
-        let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
+        // let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
     }
 }
 
@@ -89,6 +118,7 @@ fn remove_http_www(mut url_string: String) -> String {
 }
 
 fn is_blacklisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
+    let url = remove_http_www(url.to_string());
     active_blocks.iter().any(|block| {
         block
             .blacklist
@@ -97,12 +127,25 @@ fn is_blacklisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
     })
 }
 
-// What would be a better name for this function?
-fn handle_client(stream: &mut UnixStream) -> Option<String> {
+fn is_whitelisted(active_blocks: &HashSet<Block>, url: &str) -> bool {
+    let url = remove_http_www(url.to_string());
+
+    active_blocks.iter().any(|block| {
+        block
+            .whitelist
+            .as_ref()
+            .is_some_and(|whitelist| whitelist.iter().any(|w| {
+                let w_string = w.trim_end_matches('*').to_string();
+                url.starts_with(&w_string)
+            }))
+    })
+}
+
+fn read_length_prefixed_message(stream: &mut UnixStream) -> Option<String> {
     // Read 4-byte length prefix
     let mut length_buf = [0u8; 4];
     if let Err(e) = stream.read_exact(&mut length_buf) {
-        eprintln!("Failed to read length: {}", e);
+        eprintln!("Failed to read length: {e}");
         return None;
     }
     let length = u32::from_le_bytes(length_buf) as usize;
@@ -110,17 +153,17 @@ fn handle_client(stream: &mut UnixStream) -> Option<String> {
     // Read exactly that many bytes for the message
     let mut buffer = vec![0u8; length];
     if let Err(e) = stream.read_exact(&mut buffer) {
-        eprintln!("Failed to read message: {}", e);
+        eprintln!("Failed to read message: {e}");
         return None;
     }
 
     let message = String::from_utf8_lossy(&buffer).to_string();
-    println!("Received message: {}", message);
+    // println!("Received message: {}", message);
     Some(message)
 }
 
 fn handle_bridge_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>) {
-    if let Some(json_str) = handle_client(stream) {
+    if let Some(json_str) = read_length_prefixed_message(stream) {
         let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
             eprintln!("Invalid JSON from bridge.");
             serde_json::json!({})
@@ -129,7 +172,7 @@ fn handle_bridge_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>
         let url = v["url"].as_str().unwrap_or("").to_string();
         let url = remove_http_www(url);
 
-        let allowed = !is_blacklisted(active_blocks, &url);
+        let allowed = !is_blacklisted(active_blocks, &url) || is_whitelisted(active_blocks, &url);
         println!(
             "{} URL from bridge: {}",
             if allowed { "Allowed" } else { "Blocked" },
@@ -144,23 +187,31 @@ fn handle_bridge_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_blacklist() {
+    // Return value from setup
+    fn setup_active_blocks() -> HashSet<Block> {
         let config = config::parse_config().unwrap();
 
-        let blocks = config.blocks;
+        config
+            .blocks
+            .into_iter()
+            .filter(|block| block.active_by_default.unwrap_or(false))
+            .collect()
+    }
+
+    #[test]
+    fn test_blacklist() {
+        let active_blocks = setup_active_blocks();
 
         let url = "https://www.youtube.com/";
-        // Check if the URL is in the blacklist of any block
-        assert!(
-            blocks.iter().any(|block| {
-                block
-                    .blacklist
-                    .as_ref()
-                    .is_some_and(|blacklist| blacklist.iter().any(|b| url.contains(b)))
-            }),
-            "URL should be blocked"
-        );
+        assert!(is_blacklisted(&active_blocks, url));
+    }
+
+    #[test]
+    fn test_whitelist() {
+        let active_blocks = setup_active_blocks();
+
+        let url = "https://www.youtube.com/results?search_query=sylvan+franklin";
+        assert!(is_whitelisted(&active_blocks, url));
     }
 
     #[test]

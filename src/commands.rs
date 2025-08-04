@@ -25,6 +25,7 @@ pub fn list_available_blocks(cli_sock: &mut UnixStream) -> io::Result<()> {
     }
 
     let response_str = String::from_utf8_lossy(&response_buf[..bytes_read]);
+    // Need to parse the response as JSON to handle it properly
     println!("Available blocks: {}", response_str);
     
     Ok(())

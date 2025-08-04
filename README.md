@@ -16,7 +16,7 @@ Another killer feature would be to sync across devices???? I understand the
 config would handle that, but syncing locks would be satisfying
 
 ### Work on tomorrow
-- CLI integration with daemon, and how those will interact
+- Whitelisting functionality
 - Installing on MacOS (plist file for launchd)
 - Installing on Linux (systemd service)
 

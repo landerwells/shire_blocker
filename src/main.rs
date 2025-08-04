@@ -71,7 +71,7 @@ fn main() {
         Err(e) => {
             eprintln!(
                 "Failed to connect to Shire daemon at '{socket_path}': {e}.\n\
-                 Is the daemon running?");
+                 Is the daemon running? Try starting it with `shire service start`");
             return;
         }
     };
