@@ -1,12 +1,35 @@
+// use dirs;
 use serde::Serialize;
+use std::env;
 use std::path::PathBuf;
 use std::{fs, io::Error};
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
+    // Get path to current executable (shire)
+    let exe_path = env::current_exe()?;
+    let exe_dir = exe_path.parent().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to get executable directory",
+        )
+    })?;
+
+    // Build full path to `shire_daemon`
+    let daemon_path = exe_dir.join("shire_daemon");
+
+    // Check if it exists
+    if !daemon_path.exists() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("shire_daemon not found at {}", daemon_path.display()),
+        ));
+    }
+
+    // Build the launchd plist XML
     let plist = format!(
-"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-<plist version=\"1.0\">
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
 <dict>
     <key>Label</key>
     <string>{}</string>
@@ -16,42 +39,57 @@ pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     </array>
     <key>RunAtLoad</key>
     <true/>
-        <key>KeepAlive</key>
+    <key>KeepAlive</key>
     <dict>
         <key>SuccessfulExit</key>
- 	     <false/>
- 	     <key>Crashed</key>
- 	     <true/>
+        <false/>
+        <key>Crashed</key>
+        <true/>
     </dict>
     <key>StandardOutPath</key>
-    <string>/tmp/srhd_sylvanfranklin.out.log</string>
+    <string>/tmp/shire.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/srhd_sylvanfranklin.err.log</string>
+    <string>/tmp/shire.stderr.log</string>
     <key>ProcessType</key>
     <string>Interactive</string>
     <key>Nice</key>
     <integer>-20</integer>
 </dict>
-</plist>",
+</plist>"#,
         ctl.name,
-        // this right here is just ass
-        std::env::current_exe().unwrap().to_str().unwrap()
+        daemon_path.to_str().ok_or_else(|| std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "shire_daemon path is not valid UTF-8"
+        ))?,
     );
 
-    fs::write(ctl.plist_path.clone(), plist)
+    fs::write(&ctl.plist_path, plist)?;
+
+    Ok(())
 }
 
-// I think I could create a function here that would allow seemless installation
-// of both the manifest and the launchctl service
-pub fn install() -> Result<(), Error> {
+pub fn start() -> Result<(), Error> {
+    // Get the user's home directory for the plist file
+    let home_dir = dirs::home_dir().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        )
+    })?;
+
+    // Create the proper plist path in the user's LaunchAgents directory
+    let plist_path = home_dir
+        .join("Library/LaunchAgents")
+        .join("com.landerwells.shire.plist");
+
     let ctl = launchctl::Service::builder()
-        .name("com.sylvanfranklin.srhd")
+        .name("com.landerwells.shire")
+        .plist_path(plist_path.to_str().unwrap())
         .build();
 
     install_ctl(&ctl)?;
     install_manifest()?;
 
-    // Start the service
     ctl.start()?;
     Ok(())
 }
