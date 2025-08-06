@@ -77,20 +77,24 @@ pub fn start() -> Result<(), Error> {
         )
     })?;
 
-    // Create the proper plist path in the user's LaunchAgents directory
-    let plist_path = home_dir
-        .join("Library/LaunchAgents")
-        .join("com.landerwells.shire.plist");
-
-    let ctl = launchctl::Service::builder()
-        .name("com.landerwells.shire")
-        .plist_path(plist_path.to_str().unwrap())
-        .build();
-
-    install_ctl(&ctl)?;
     install_manifest()?;
+    if cfg!(target_os = "macos") {
+        // Create the proper plist path in the user's LaunchAgents directory
+        let plist_path = home_dir
+            .join("Library/LaunchAgents")
+            .join("com.landerwells.shire.plist");
 
-    ctl.start()?;
+        let ctl = launchctl::Service::builder()
+            .name("com.landerwells.shire")
+            .plist_path(plist_path.to_str().unwrap())
+            .build();
+
+        install_ctl(&ctl)?;
+        ctl.start()?;
+    } else {
+        println!("Not running on macOS");
+    }
+
     Ok(())
 }
 
