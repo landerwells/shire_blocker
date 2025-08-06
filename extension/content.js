@@ -28,7 +28,6 @@
   function displayBlockedPage() {
     // Clear the entire page
     document.documentElement.innerHTML = '';
-    console.log("Displaying block page");
 
     // Create a simple blocked page
     const blockedContent = `
@@ -106,4 +105,3 @@
   console.log("Content script loaded for:", window.location.href);
 })();
 
-console.log("Inside content.js")
