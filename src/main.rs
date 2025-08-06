@@ -11,6 +11,7 @@ use std::os::unix::net::UnixStream;
     author = "Lander Wells",
     about = "A tool for managing blocks and services"
 )]
+#[clap(disable_help_flag = true)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
@@ -79,14 +80,14 @@ fn main() {
                 list_available_blocks(&mut cli_sock).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                println!("Starting block: {}", name);
+                println!("Starting block: {name}");
                 if let Some(lock_duration) = lock {
-                    println!("Lock duration: {}", lock_duration);
+                    println!("Lock duration: {lock_duration}");
                 }
                 // TODO: Implement block start
             }
             BlockAction::Stop { name } => {
-                println!("Stopping block: {}", name);
+                println!("Stopping block: {name}");
                 // TODO: Implement block stop
             }
         },

@@ -3,10 +3,12 @@ A simple, cross-platform, text-based configuration tool to block websites and ap
 
 ### Work on tomorrow
 - Integrating CLI tool commands with daemon
+    - better parsing for listing blocks
 - Installing on Linux (systemd service)
 
 ### Features
 Before release
+- [ ] Unit tests and integration tests??
 - [ ] Need to put Firefox add-on in the store.
 - [ ] Config file
 - [ ] Commands for CLI
