@@ -1,17 +1,12 @@
-// use dirs;
 use serde::Serialize;
 use std::env;
 use std::path::PathBuf;
 use std::{fs, io::Error};
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
-    // Get path to current executable (shire)
     let exe_path = env::current_exe()?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to get executable directory",
-        )
+        std::io::Error::other("Failed to get executable directory")
     })?;
 
     // Build full path to `shire_daemon`

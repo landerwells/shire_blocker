@@ -26,9 +26,9 @@
 
   // Display a blank page with blocking message
   function displayBlockedPage() {
-    console.log("Displaying blocked page for:", window.location.href);
     // Clear the entire page
     document.documentElement.innerHTML = '';
+    console.log("Displaying block page");
 
     // Create a simple blocked page
     const blockedContent = `
@@ -105,3 +105,5 @@
 
   console.log("Content script loaded for:", window.location.href);
 })();
+
+console.log("Inside content.js")
