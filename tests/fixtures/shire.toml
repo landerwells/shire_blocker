@@ -9,8 +9,6 @@ name = "Algorithmic Feeds"
 active_by_default = true
 whitelist = [
   "accounts.google.com/*",
-  # "file://*",
-  # "file://*.*",
   "google.com/url?*",
   "instagram.com/direct/inbox",
   "instagram.com/p/*",

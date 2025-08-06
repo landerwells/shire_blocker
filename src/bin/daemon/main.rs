@@ -12,6 +12,10 @@ mod config;
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
+// For testing purposes, I think it would be beneficial to have a way to 
+// pass a the configuration to the main function. This would allow us to 
+// easily test different configurations without having to read from a file.
+
 // I like the idea of a single app state that I can pass into the cli or 
 // bridge thread. 
 fn main() {
@@ -26,7 +30,7 @@ fn main() {
             active_blocks.insert(block);
         }
     }
-    println!("Active blocks: {:?}", active_blocks);
+    println!("Active blocks: {active_blocks:?}");
 
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);

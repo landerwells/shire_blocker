@@ -1,7 +1,12 @@
 # Shire Blocker
 A simple, cross-platform, text-based configuration tool to block websites and applications.
 
+I wasn't able to get the application working on linux today. I believe that I need better testing for the bridge, or some way of testing that messages are getting passed correctly between it and the daemon.
+
+These would be considered integration testing and should the system in general, specifically loading the configuration, and being able to send messages with the bridge. It would be nice if I had a combined interface to interact between the bridge and the daemon.
+
 ### Work on tomorrow
+- 
 - Integrating CLI tool commands with daemon
     - better parsing for listing blocks
 - Installing on Linux (systemd service)
