@@ -1,36 +1,42 @@
 use crate::config::Block;
+use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use std::io::prelude::*;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::{collections::HashSet, io::Read};
+use std::collections::HashMap;
 use std::thread;
+use std::sync::{Arc, Mutex};
 
 mod config;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
-// For testing purposes, I think it would be beneficial to have a way to 
-// pass a the configuration to the main function. This would allow us to 
-// easily test different configurations without having to read from a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+enum BlockState {
+    Unblocked,
+    Blocked,
+    BlockedWithLock,
+}
 
-// I like the idea of a single app state that I can pass into the cli or 
-// bridge thread. 
 fn main() {
-    // Maybe think of putting the config parsing in a separate function named
-    // initialize_config or something similar. That way we can hotload the
-    // config if we want to.
     let config = config::parse_config().unwrap();
-    let mut active_blocks: HashSet<Block> = HashSet::new();
+    // let mut block_states: HashMap<String, BlockState> = HashMap::new();
+    let mut block_states = Arc::new(Mutex::new(HashMap::new()));
 
-    for block in config.blocks {
-        if let Some(true) = block.active_by_default {
-            active_blocks.insert(block);
-        }
-    }
-    println!("Active blocks: {active_blocks:?}");
+    config.blocks.iter().for_each(|block| {
+        let state = if matches!(block.active_by_default, Some(true)) {
+            BlockState::Blocked
+        } else {
+            BlockState::Unblocked
+        };
+        // Lock the mutex and insert into the HashMap
+        let mut map = block_states.lock().unwrap();
+        map.insert(block.name.clone(), state);
+    });
 
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
@@ -38,70 +44,72 @@ fn main() {
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    let active_blocks_clone = active_blocks.clone();
     thread::spawn(move || {
         for stream in bridge_listener.incoming() {
+            let active_blocks: HashSet<Block> = config.clone()
+                .blocks
+                .into_iter()
+                .filter(|block| block.active_by_default.unwrap_or(false))
+                .collect();
             match stream {
                 Ok(mut stream) => {
-                    handle_bridge_request(&mut stream, &active_blocks_clone);
+                    handle_bridge_request(&mut stream, &active_blocks);
                 }
                 Err(e) => eprintln!("Bridge connection failed: {e}"),
             }
         }
     });
 
-    // I think at least for the cli I will need to pass all of the blocks
-    // instead of just the active ones. I essentially need to print the entire
-    // configuration to the user.
     for stream in cli_listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let blocks = active_blocks.clone();
-                thread::spawn(move || handle_cli_request(&mut stream, &blocks));
+                let blocks = block_states.clone();
+                thread::spawn(move || handle_cli_request(&mut stream, blocks));
             }
             Err(e) => eprintln!("CLI connection failed: {e}"),
         }
+
+        // Need to join back with main thread and update the block states
+        // And I think this just got a whole lot more complicated because I need
+        // to pass the updated block states to the bridge thread
     }
 }
 
-fn handle_cli_request(stream: &mut UnixStream, active_blocks: &HashSet<Block>) {
+fn handle_cli_request(stream: &mut UnixStream, blocks: Arc<Mutex<HashMap<String, BlockState>>>) {
     if let Some(json_str) = read_length_prefixed_message(stream) {
         let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
             eprintln!("Invalid JSON from CLI.");
             serde_json::json!({})
         });
 
+        let mut map = blocks.lock().unwrap();
+
         match v["action"].as_str() {
             Some("list_blocks") => {
-                let blocks: Vec<String> = active_blocks
-                    .iter()
-                    .map(|block| block.name.clone())
-                    .collect();
-                let response = serde_json::json!({ "blocks": blocks });
+                println!("{blocks:?}");
+                let response = serde_json::json!({ "blocks": *map });
                 let response_str = response.to_string();
                 let bytes = response_str.as_bytes();
                 let len = bytes.len() as u32;
+                stream.flush().unwrap();
                 let _ = stream.write_all(&len.to_le_bytes());
                 let _ = stream.write_all(bytes);
             }
-            // Some("toggle_block") => {
-            //     if let Some(name) = v["name"].as_str() {
-            //         if let Some(block) = active_blocks.iter().find(|b| b.name == name) {
-            //             // Toggle the block's active state
-            //             if active_blocks.contains(block) {
-            //                 active_blocks.remove(block);
-            //                 println!("Block '{}' deactivated.", name);
-            //             } else {
-            //                 active_blocks.insert(block.clone());
-            //                 println!("Block '{}' activated.", name);
-            //             }
-            //         } else {
-            //             eprintln!("Block '{}' not found.", name);
-            //         }
-            //     } else {
-            //         eprintln!("No block name provided.");
-            //     }
-            // }
+            // I guess I could just have a toggle block action to simplify both
+            // block start and block stop
+            Some("start_block") => {
+                // Could have multiple errors in this method, first the block might 
+                // not exist, then
+                let block_name = v["name"].as_str().unwrap().to_string();
+
+                if let Some(state) = map.get_mut(&block_name) {
+                    println!("Found block {block_name}");
+                    *state = BlockState::Blocked;
+                    println!("{:?}", blocks);
+                } else {
+                    eprintln!("Block '{}' not found.", block_name);
+                }
+            }
             _ => eprintln!("Unknown action in CLI request."),
         }
 

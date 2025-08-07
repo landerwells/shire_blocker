@@ -1,8 +1,10 @@
 mod commands;
 mod service;
 use clap::{Parser, Subcommand};
-use commands::list_available_blocks;
+use commands::list_blocks;
 use std::os::unix::net::UnixStream;
+
+use crate::commands::start_block;
 
 #[derive(Parser)]
 #[command(
@@ -39,6 +41,7 @@ enum BlockAction {
     Start {
         name: String,
         #[arg(long)]
+        // Need to make this more obvious to users
         lock: Option<String>, // e.g. duration
     },
     /// Stop a block
@@ -57,7 +60,8 @@ enum ServiceAction {
 
 const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
-// Refactor a bit since I don't like how it is handled along with the main function
+// Refactor a bit since I don't like how it is handled along with the main function,
+// but I do like this error message.
 fn setup_socket() -> Result<UnixStream, std::io::Error> {
     // Attempt to connect to the Unix socket
     match UnixStream::connect(SOCKET_PATH) {
@@ -75,16 +79,15 @@ fn main() {
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
-                println!("Listing all available blocks...");
+                // I would also like people to be able to do shire block ls
+                // println!("Listing all available blocks...");
                 let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
-                list_available_blocks(&mut cli_sock).expect("Failed to list available blocks");
+                list_blocks(&mut cli_sock).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                println!("Starting block: {name}");
-                if let Some(lock_duration) = lock {
-                    println!("Lock duration: {lock_duration}");
-                }
-                // TODO: Implement block start
+                let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
+
+                start_block(&mut cli_sock, name, lock).expect("Failed to start block");
             }
             BlockAction::Stop { name } => {
                 println!("Stopping block: {name}");

@@ -1,7 +1,7 @@
 use std::fs;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     // pub settings: Settings,
     pub blocks: Vec<Block>,
@@ -44,7 +44,6 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     let config: Config = toml::from_str(&contents)?;
 
     Ok(config)
-
 }
 
 // Eventually will want to write or generate tests to make sure the parsing is 

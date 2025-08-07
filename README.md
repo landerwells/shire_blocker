@@ -5,10 +5,13 @@ I wasn't able to get the application working on linux today. I believe that I ne
 
 These would be considered integration testing and should the system in general, specifically loading the configuration, and being able to send messages with the bridge. It would be nice if I had a combined interface to interact between the bridge and the daemon.
 
+// For testing purposes, I think it would be beneficial to have a way to 
+// pass a the configuration to the main function. This would allow us to 
+// easily test different configurations without having to read from a file.
+
 ### Work on tomorrow
-- 
 - Integrating CLI tool commands with daemon
-    - better parsing for listing blocks
+ - Starting and stopping blocks through cli
 - Installing on Linux (systemd service)
 
 ### Features
