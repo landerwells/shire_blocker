@@ -1,5 +1,6 @@
 use std::fs;
 use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -16,7 +17,7 @@ pub struct Config {
 //     pub strict_mode: Option<bool>, // optional
 // }
 
-#[derive(PartialEq, Eq, Hash, Debug, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     pub name: String,
     pub active_by_default: Option<bool>,
@@ -46,10 +47,15 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(config)
 }
 
-// Eventually will want to write or generate tests to make sure the parsing is 
-// handled correctly, and that the daemon handles incorrectly formatted
-// configurations gracefully.
-//
+
+// Need to properly test the configuration and parsing.
+
+
+// Generally I want good error messages, and I think that I will output errors
+// to a single location just like skhd does.
+
+
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;

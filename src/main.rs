@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use commands::list_blocks;
 use std::os::unix::net::UnixStream;
 
-use crate::commands::start_block;
+use crate::commands::*;
 
 #[derive(Parser)]
 #[command(
@@ -90,8 +90,9 @@ fn main() {
                 start_block(&mut cli_sock, name, lock).expect("Failed to start block");
             }
             BlockAction::Stop { name } => {
-                println!("Stopping block: {name}");
-                // TODO: Implement block stop
+                let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
+
+                stop_block(&mut cli_sock, name).expect("Failed to stop block");
             }
         },
         Commands::Service { action } => match action {
