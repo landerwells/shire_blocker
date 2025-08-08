@@ -133,9 +133,13 @@ fn handle_cli_request(stream: &mut UnixStream, blocks: Arc<Mutex<HashMap<Block, 
 
         match v["action"].as_str() {
             Some("list_blocks") => {
-                println!("{map:?}");
-                // This bit needs to change
-                let response = serde_json::json!({ "blocks": map });
+
+                let string_map: HashMap<String, BlockState> = map
+                    .into_iter()
+                    .map(|(block, state)| (block.name.clone(), state))
+                    .collect();
+
+                let response = serde_json::json!({ "blocks": string_map });
                 let response_str = response.to_string();
                 let bytes = response_str.as_bytes();
                 let len = bytes.len() as u32;
@@ -171,8 +175,6 @@ fn handle_cli_request(stream: &mut UnixStream, blocks: Arc<Mutex<HashMap<Block, 
             }
             _ => eprintln!("Unknown action in CLI request."),
         }
-
-        // let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
     }
 }
 
