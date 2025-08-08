@@ -133,7 +133,8 @@ fn handle_cli_request(stream: &mut UnixStream, blocks: Arc<Mutex<HashMap<Block, 
 
         match v["action"].as_str() {
             Some("list_blocks") => {
-                println!("{blocks:?}");
+                println!("{map:?}");
+                // This bit needs to change
                 let response = serde_json::json!({ "blocks": map });
                 let response_str = response.to_string();
                 let bytes = response_str.as_bytes();
