@@ -1,15 +1,17 @@
 use crate::config::Block;
 use serde::Serialize;
 use serde_json::Value;
+use serde_json::json;
+use shire_blocker::recv_length_prefixed_message;
+use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
-use std::io::prelude::*;
+use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::{collections::HashSet, io::Read};
 
 mod config;
 
@@ -26,7 +28,6 @@ enum BlockState {
 fn main() {
     let config = config::parse_config().unwrap();
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
-    let (tx, rx) = mpsc::channel::<(HashSet<String>, HashSet<String>)>();
 
     config.blocks.iter().for_each(|block| {
         let state = if matches!(block.active_by_default, Some(true)) {
@@ -45,22 +46,12 @@ fn main() {
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    // Need to pass blacklist and whitelist to the bridge thread
-
-    let mut blacklist = get_blacklist(&block_states.lock().unwrap());
-    let mut whitelist = get_whitelist(&block_states.lock().unwrap());
-
+    let blocks = Arc::clone(&block_states);
     thread::spawn(move || {
         for stream in bridge_listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    // Check for updates without blocking
-                    if let Ok((new_blacklist, new_whitelist)) = rx.try_recv() {
-                        blacklist = new_blacklist;
-                        whitelist = new_whitelist;
-                    }
-
-                    handle_bridge_request(&mut stream, blacklist.clone(), whitelist.clone());
+                    let _ = handle_bridge_request(&mut stream, &blocks.lock().unwrap().clone());
                 }
                 Err(e) => eprintln!("Bridge connection failed: {e}"),
             }
@@ -71,18 +62,9 @@ fn main() {
         match stream {
             Ok(mut stream) => {
                 let blocks = Arc::clone(&block_states);
-                let tx = tx.clone();
 
                 thread::spawn(move || {
                     handle_cli_request(&mut stream, blocks.clone());
-
-                    let map = blocks.lock().unwrap();
-                    let blacklist: HashSet<String> = get_blacklist(&map);
-                    let whitelist: HashSet<String> = get_whitelist(&map);
-
-                    if tx.send((blacklist, whitelist)).is_err() {
-                        eprintln!("Bridge thread has shut down");
-                    }
                 });
             }
             Err(e) => eprintln!("CLI connection failed: {e}"),
@@ -123,58 +105,58 @@ fn get_whitelist(
 }
 
 fn handle_cli_request(stream: &mut UnixStream, blocks: Arc<Mutex<HashMap<Block, BlockState>>>) {
-    if let Some(json_str) = read_length_prefixed_message(stream) {
-        let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
-            eprintln!("Invalid JSON from CLI.");
-            serde_json::json!({})
-        });
+    // Need to have better error handling here
+    let response = recv_length_prefixed_message(stream).unwrap();
+    let response_str = String::from_utf8_lossy(&response);
 
-        let mut map: HashMap<Block, BlockState> = blocks.lock().unwrap().clone();
+    let v: Value = serde_json::from_str(response_str.trim()).unwrap_or_else(|_| {
+        eprintln!("Invalid JSON from CLI.");
+        serde_json::json!({})
+    });
 
-        match v["action"].as_str() {
-            Some("list_blocks") => {
+    let mut map = blocks.lock().unwrap();
 
-                let string_map: HashMap<String, BlockState> = map
-                    .into_iter()
-                    .map(|(block, state)| (block.name.clone(), state))
-                    .collect();
+    match v["action"].as_str() {
+        Some("list_blocks") => {
 
-                let response = serde_json::json!({ "blocks": string_map });
-                let response_str = response.to_string();
-                let bytes = response_str.as_bytes();
-                let len = bytes.len() as u32;
-                stream.flush().unwrap();
-                let _ = stream.write_all(&len.to_le_bytes());
-                let _ = stream.write_all(bytes);
-            }
-            Some("start_block") => {
-                // Could have multiple errors in this method, first the block might 
-                // not exist, then
-                let block_name = v["name"].as_str().unwrap().to_string();
+            let string_map: HashMap<String, BlockState> = map
+                .iter()
+                .map(|(block, state)| (block.name.clone(), *state))
+                .collect();
 
-                // This is where I could return the error to the client 
-                // that the block does not exits.
-                let block = map.keys().find(|b| b.name == block_name).cloned().unwrap();
-
-                if let Some(state) = map.get_mut(&block) {
-                    *state = BlockState::Blocked;
-                } else {
-                    eprintln!("Block '{}' not found.", block_name);
-                }
-            }
-            Some("stop_block") => {
-                let block_name = v["name"].as_str().unwrap().to_string();
-
-                let block = map.keys().find(|b| b.name == block_name).cloned().unwrap();
-
-                if let Some(state) = map.get_mut(&block) {
-                    *state = BlockState::Unblocked;
-                } else {
-                    eprintln!("Block '{}' not found.", block_name);
-                }
-            }
-            _ => eprintln!("Unknown action in CLI request."),
+            let message = serde_json::json!({ "blocks": string_map }).to_string().into_bytes();
+            send_length_prefixed_message(stream, &message).unwrap();
         }
+        // I could even make a function purely for changing the state of the blocks
+        Some("start_block") => {
+            let block_name = v["name"].as_str().unwrap().to_string();
+            if let Some(state) = map.iter_mut().find_map(|(b, state)| {
+                if b.name == block_name { Some(state) } else { None }
+            }) {
+                *state = BlockState::Blocked;
+            } else {
+                eprintln!("Block '{block_name}' not found.");
+            }
+
+            let message = serde_json::json!({ "status": "started", "block": block_name }).to_string().into_bytes();
+            send_length_prefixed_message(stream, &message).unwrap();
+        }
+        Some("stop_block") => {
+            let block_name = v["name"].as_str().unwrap().to_string();
+
+            // Use iter_mut and find_map just like in start_block to avoid cloning keys
+            if let Some(state) = map.iter_mut().find_map(|(b, state)| {
+                if b.name == block_name { Some(state) } else { None }
+            }) {
+                *state = BlockState::Unblocked;
+            } else {
+                eprintln!("Block '{block_name}' not found.");
+            }
+
+            let message = serde_json::json!({ "status": "stopped", "block": block_name }).to_string().into_bytes();
+            send_length_prefixed_message(stream, &message).unwrap();
+        }
+        _ => eprintln!("Unknown action in CLI request."),
     }
 }
 
@@ -204,79 +186,49 @@ fn is_whitelisted(whitelist: &HashSet<String>, url: &str) -> bool {
     })
 }
 
-fn read_length_prefixed_message(stream: &mut UnixStream) -> Option<String> {
-    // Read 4-byte length prefix
-    let mut length_buf = [0u8; 4];
-    if let Err(e) = stream.read_exact(&mut length_buf) {
-        eprintln!("Failed to read length: {e}");
-        return None;
-    }
-    let length = u32::from_le_bytes(length_buf) as usize;
+fn handle_bridge_request(
+    stream: &mut UnixStream,
+    blocks: &HashMap<Block, BlockState>,
+) -> io::Result<()> {
+    // Get black/white lists
+    let blacklist = get_blacklist(blocks);
+    let whitelist = get_whitelist(blocks);
 
-    // Read exactly that many bytes for the message
-    let mut buffer = vec![0u8; length];
-    if let Err(e) = stream.read_exact(&mut buffer) {
-        eprintln!("Failed to read message: {e}");
-        return None;
-    }
+    // Receive length-prefixed JSON request
+    let raw_request = recv_length_prefixed_message(stream)?;
+    let request_str = String::from_utf8_lossy(&raw_request);
+    println!("Bridge request: {}", request_str);
 
-    let message = String::from_utf8_lossy(&buffer).to_string();
-    // println!("Received message: {}", message);
-    Some(message)
-}
+    let v: Value = serde_json::from_str(request_str.trim()).unwrap_or_else(|_| {
+        eprintln!("Invalid JSON from bridge.");
+        json!({})
+    });
 
-fn handle_bridge_request(stream: &mut UnixStream, blacklist: HashSet<String>, whitelist: HashSet<String>) {
-    println!("Received request from bridge...");
-    if let Some(json_str) = read_length_prefixed_message(stream) {
-        let v: Value = serde_json::from_str(json_str.trim()).unwrap_or_else(|_| {
-            eprintln!("Invalid JSON from bridge.");
-            serde_json::json!({})
-        });
+    let url = v["url"].as_str().unwrap_or("").to_string();
+    let url = remove_http_www(url);
 
-        let url = v["url"].as_str().unwrap_or("").to_string();
-        let url = remove_http_www(url);
+    println!("Checking URL: {}", url);
 
-        println!("Checking URL: {}", url);
-        let allowed = !is_blacklisted(&blacklist, &url) || is_whitelisted(&whitelist, &url);
-        println!(
-            "{} URL from bridge: {}",
-            if allowed { "Allowed" } else { "Blocked" },
-            url
-        );
+    // Check if allowed or blocked
+    let allowed = !is_blacklisted(&blacklist, &url) || is_whitelisted(&whitelist, &url);
 
-        let _ = stream.write_all(&[if allowed { 0 } else { 1 }]);
-    }
+    println!(
+        "{} URL from bridge: {}",
+        if allowed { "Allowed" } else { "Blocked" },
+        url
+    );
+
+    // Send JSON response with "allowed" key
+    let response_json = json!({ "allowed": allowed });
+    let response_bytes = response_json.to_string().into_bytes();
+    send_length_prefixed_message(stream, &response_bytes)?;
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // fn setup_active_blocks() -> HashSet<Block> {
-    //     let config = config::parse_config().unwrap();
-    //
-    //     config
-    //         .blocks
-    //         .into_iter()
-    //         .filter(|block| block.active_by_default.unwrap_or(false))
-    //         .collect()
-    // }
-    //
-    // #[test]
-    // fn test_blacklist() {
-    //     let active_blocks = setup_active_blocks();
-    //
-    //     let url = "https://www.youtube.com/";
-    //     assert!(is_blacklisted(&active_blocks, url));
-    // }
-    //
-    // #[test]
-    // fn test_whitelist() {
-    //     let active_blocks = setup_active_blocks();
-    //
-    //     let url = "https://www.youtube.com/results?search_query=sylvan+franklin";
-    //     assert!(is_whitelisted(&active_blocks, url));
-    // }
 
     #[test]
     fn test_parse_json() {
@@ -284,7 +236,7 @@ mod tests {
             r#"{"url":"https://www.google.com/search?client=firefox-b-1-d&q=json+parser+rust"}"#;
 
         let v: Value = serde_json::from_str(json_str).unwrap_or_else(|_| {
-            eprintln!("Failed to parse JSON: {}", json_str);
+            eprintln!("Failed to parse JSON: {json_str}");
             Value::Null
         });
         assert_eq!(
@@ -295,7 +247,7 @@ mod tests {
         // Test with an invalid JSON string
         let invalid_json_str = r#"{"url": "https://www.example.com""#;
         let v_invalid: Value = serde_json::from_str(invalid_json_str).unwrap_or_else(|_| {
-            eprintln!("Failed to parse JSON: {}", invalid_json_str);
+            eprintln!("Failed to parse JSON: {invalid_json_str}");
             Value::Null
         });
         assert!(v_invalid.is_null());

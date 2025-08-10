@@ -26,6 +26,11 @@ enum Commands {
         #[command(subcommand)]
         action: BlockAction,
     },
+    /// Manage the block scheduler
+    Schedule {
+        #[command(subcommand)]
+        action: ScheduleAction,
+    },
     /// Manage the shire service
     Service {
         #[command(subcommand)]
@@ -46,6 +51,18 @@ enum BlockAction {
     },
     /// Stop a block
     Stop { name: String },
+    Lock { 
+        name: String ,
+        #[arg(long)]
+        // Need to make this more obvious to users
+        lock: Option<String>, // e.g. duration
+    }
+}
+
+#[derive(Subcommand)]
+enum ScheduleAction {
+    /// List the schedule
+    List,
 }
 
 #[derive(Subcommand)]
@@ -81,20 +98,32 @@ fn main() {
             BlockAction::List => {
                 // I would also like people to be able to do shire block ls
                 // println!("Listing all available blocks...");
-                let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
-                list_blocks(&mut cli_sock).expect("Failed to list available blocks");
+                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+                list_blocks(&mut stream).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
 
-                start_block(&mut cli_sock, name, lock).expect("Failed to start block");
+                start_block(&mut stream, name, lock).expect("Failed to start block");
             }
             BlockAction::Stop { name } => {
-                let mut cli_sock = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
 
-                stop_block(&mut cli_sock, name).expect("Failed to stop block");
+                stop_block(&mut stream, name).expect("Failed to stop block");
             }
+            BlockAction::Lock { name, lock } => {
+                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+
+                lock_block(&mut stream, name, lock.unwrap()).expect("Failed to lock block");
+            }
+            // I think that I should also just have a lock command?
+            // Instead of making them start it with a lock
         },
+        Commands::Schedule { action } => match action {
+            ScheduleAction::List => {
+                println!("Listing the block schedule...");
+            }
+        }
         Commands::Service { action } => match action {
             ServiceAction::Start => {
                 println!("Starting shire service (install and start daemon)...");

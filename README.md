@@ -10,8 +10,7 @@ These would be considered integration testing and should the system in general, 
 // easily test different configurations without having to read from a file.
 
 ### Work on tomorrow
-- Integrating CLI tool commands with daemon
- - Starting and stopping blocks through cli
+- Pulling all common message code into a separate file to standardize the message sending between processes.
 - Installing on Linux (systemd service)
 
 ### Features
