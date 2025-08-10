@@ -2,7 +2,8 @@ use shire_blocker::recv_length_prefixed_message;
 use shire_blocker::send_length_prefixed_message;
 use serde_json::Value;
 use serde_json::json;
-use std::io::{self, Read, Write};
+use std::collections::HashMap;
+use std::io;
 use std::os::unix::net::UnixStream;
 
 // ANSI color escape codes
@@ -17,7 +18,7 @@ pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
     })
     .to_string().into_bytes();
 
-    send_length_prefixed_message(stream, &message);
+    send_length_prefixed_message(stream, &message)?;
 
     let bytes: Vec<u8> = recv_length_prefixed_message(stream)?;
     let response = String::from_utf8(bytes).unwrap();
@@ -69,54 +70,29 @@ pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
     Ok(())
 }
 
+pub fn send_action_with_params(
+    stream: &mut UnixStream,
+    action: &str,
+    params: Option<HashMap<&str, Value>>,
+) -> io::Result<String> {
+    // Build base JSON with the action
+    let mut message_json = json!({ "action": action });
 
-// TODO: I think all three of these functions could be condensed down to one??
-pub fn start_block(stream: &mut UnixStream, name: String, lock: Option<String>) -> io::Result<()> {
-    let message = json!({
-        "action": "start_block",
-        "name": name,
-        "lock": lock
-    })
-    .to_string().into_bytes();
+    // If extra params provided, merge them in
+    if let Some(map) = params {
+        for (k, v) in map {
+            message_json[k] = v;
+        }
+    }
 
-    send_length_prefixed_message(stream, &message)?;
+    let message_bytes = message_json.to_string().into_bytes();
+    send_length_prefixed_message(stream, &message_bytes)?;
 
-    let bytes: Vec<u8> = recv_length_prefixed_message(stream)?; // propagate I/O error
-    let response = String::from_utf8(bytes).unwrap();
+    let bytes = recv_length_prefixed_message(stream)?;
+    let response = String::from_utf8(bytes)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    println!("Response: {response}");
+    println!("Response: {}", response);
 
-    Ok(())
-}
-
-pub fn stop_block(stream: &mut UnixStream, name: String) -> io::Result<()> {
-    let message = json!({
-        "action": "stop_block",
-        "name": name
-    }).to_string().into_bytes();
-
-    send_length_prefixed_message(stream, &message)?;
-
-    let bytes: Vec<u8> = recv_length_prefixed_message(stream)?; // propagate I/O error
-    let response = String::from_utf8(bytes).unwrap();
-
-    println!("Response: {response}");
-    Ok(())
-}
-
-pub fn lock_block(stream: &mut UnixStream, name: String, lock: String) -> io::Result<()> {
-    let message = json!({
-        "action": "lock_block",
-        "name": name,
-        "lock": lock
-    })
-    .to_string().into_bytes();
-
-    send_length_prefixed_message(stream, &message)?;
-
-    let bytes: Vec<u8> = recv_length_prefixed_message(stream)?; // propagate I/O error
-    let response = String::from_utf8(bytes).unwrap();
-
-    println!("Response: {response}");
-    Ok(())
+    Ok(response)
 }

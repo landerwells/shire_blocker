@@ -10,22 +10,21 @@ These would be considered integration testing and should the system in general, 
 // easily test different configurations without having to read from a file.
 
 ### Work on tomorrow
-- Pulling all common message code into a separate file to standardize the message sending between processes.
-- Installing on Linux (systemd service)
+The next big three things that I want to do.
+- Refactor old code
+- Write unit and integration tests for almost every use case for more efficient workflow
+- Installation process on linux
 
 ### Features
 Before release
-- [ ] Unit tests and integration tests??
+- [ ] Rusqlite for lock persistence throughout reboot and otherwise
 - [ ] Need to put Firefox add-on in the store.
-- [ ] Config file
-- [ ] Commands for CLI
-- [x] Whitelist and Blacklist
+- [ ] Scheduling
+- [ ] Have a timer set to refresh occasionally the active tab so that there won't be blacklisted tabs open
+- [ ] General polish and good error handling everywhere
 
 After release
-- Look into rusqlite for persisting locks if the service is pkilled
-- Have a timer set to refresh occasionally the active tab so that there won't be blacklisted tabs open
 - Hotload config?
-- Scheduling
 
 ### Goals
 Primary goals of this project

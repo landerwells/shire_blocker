@@ -1,5 +1,7 @@
 mod commands;
 mod service;
+use serde_json::json;
+use std::collections::HashMap;
 use clap::{Parser, Subcommand};
 use commands::list_blocks;
 use std::os::unix::net::UnixStream;
@@ -77,47 +79,40 @@ enum ServiceAction {
 
 const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
-// Refactor a bit since I don't like how it is handled along with the main function,
-// but I do like this error message.
-fn setup_socket() -> Result<UnixStream, std::io::Error> {
-    // Attempt to connect to the Unix socket
-    match UnixStream::connect(SOCKET_PATH) {
-        Ok(stream) => Ok(stream),
-        Err(e) => {
-            eprintln!("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
-            Err(e)
-        }
-    }
-}
-
 fn main() {
     let args = Args::parse();
 
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
-                // I would also like people to be able to do shire block ls
-                // println!("Listing all available blocks...");
-                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = UnixStream::connect(SOCKET_PATH).expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
                 list_blocks(&mut stream).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = UnixStream::connect(SOCKET_PATH).expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
 
-                start_block(&mut stream, name, lock).expect("Failed to start block");
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                if let Some(lock_str) = lock {
+                    params.insert("lock", json!(lock_str));
+                }
+                send_action_with_params(&mut stream, "start_block", Some(params)).unwrap();
             }
             BlockAction::Stop { name } => {
-                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = UnixStream::connect(SOCKET_PATH).expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
 
-                stop_block(&mut stream, name).expect("Failed to stop block");
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                send_action_with_params(&mut stream, "stop_block", Some(params)).unwrap();
             }
             BlockAction::Lock { name, lock } => {
-                let mut stream = setup_socket().expect("Failed to connect to the shire service socket");
+                let mut stream = UnixStream::connect(SOCKET_PATH).expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
 
-                lock_block(&mut stream, name, lock.unwrap()).expect("Failed to lock block");
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                params.insert("lock", json!(lock));
+                send_action_with_params(&mut stream, "lock_block", Some(params)).unwrap();
             }
-            // I think that I should also just have a lock command?
-            // Instead of making them start it with a lock
         },
         Commands::Schedule { action } => match action {
             ScheduleAction::List => {
