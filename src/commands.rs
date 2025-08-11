@@ -12,6 +12,7 @@ const YELLOW: &str = "\x1b[33m";
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
 
+// I can refactor this to also be part of send_action_with_params
 pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
     let message = json!({
         "action": "list_blocks"
@@ -91,8 +92,6 @@ pub fn send_action_with_params(
     let bytes = recv_length_prefixed_message(stream)?;
     let response = String::from_utf8(bytes)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-    println!("Response: {}", response);
 
     Ok(response)
 }
