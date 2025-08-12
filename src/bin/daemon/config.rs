@@ -6,7 +6,7 @@ use serde::Serialize;
 pub struct Config {
     // pub settings: Settings,
     pub blocks: Vec<Block>,
-    // pub schedule: Vec<Schedule>,
+    pub schedule: Vec<Schedule>,
 }
 
 // #[derive(Debug, Deserialize)]
@@ -25,16 +25,15 @@ pub struct Block {
     pub blacklist: Option<Vec<String>>,
 }
 
-// I leave scheduling in for now, but I am not going to work on that feature for
-// the first release.
-// #[derive(Debug, Deserialize)]
-// pub struct Schedule {
-//     pub block: String,
-//     pub days: Vec<String>,
-//     pub start: String,
-//     pub end: String,
-// }
+#[derive(Debug, Deserialize, Clone)]
+pub struct Schedule {
+    pub block: String,
+    pub days: Vec<String>,
+    pub start: String,
+    pub end: String,
+}
 
+// I don't really understand this return type
 pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     let path = format!(
         "{}/.config/shire/shire.toml",

@@ -1,8 +1,22 @@
 # Shire Blocker
 A simple, cross-platform, text-based configuration tool to block websites and applications.
 
+### Installation
 
-### Example usage
+MacOS
+```
+shire service start
+```
+linux (for now)
+```
+shire service start
+systemctl --user daemon-reload
+systemctl --user enable shire.service
+systemctl --user start shire.service
+```
+
+
+### Usage
 
 ``` zsh
 deepwork() {
@@ -37,22 +51,9 @@ deepwork() {
 }
 ```
 
-
-### Installation
-
-MacOS
-```
-shire service start
-```
-linux (for now)
-```
-shire service start
-systemctl --user daemon-reload
-systemctl --user enable shire.service
-systemctl --user start shire.service
-```
-
 ### Configuration
+
+Example config
 
 ### Roadmap
 
