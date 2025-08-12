@@ -27,6 +27,7 @@ enum BlockState {
 
 fn main() {
     let config = config::parse_config().unwrap();
+    println!("{:?}", config);
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
 
     config.blocks.iter().for_each(|block| {
