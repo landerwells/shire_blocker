@@ -77,10 +77,10 @@ shire service stop
 A convenient script for starting focused work sessions. Save this as `deepwork.sh` and make it executable:
 
 ```bash
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Deep work session starter for Shire Blocker
-# Usage: ./deepwork.sh
+# Usage: ./deepwork.sh (can alias for convenience)
 
 echo -n "How long? (in hours): "
 read hours
@@ -124,7 +124,7 @@ fi
 
 ## Configuration
 
-Shire Blocker uses a TOML configuration file located at `~/.config/shire/shire.toml` (Linux) or `~/Library/Application Support/shire/shire.toml` (macOS).
+Shire Blocker uses a TOML configuration file located at `~/.config/shire/shire.toml`.
 
 ### Configuration Structure
 

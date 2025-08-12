@@ -4,18 +4,9 @@ use serde::Serialize;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
-    // pub settings: Settings,
     pub blocks: Vec<Block>,
     pub schedule: Vec<Schedule>,
 }
-
-// #[derive(Debug, Deserialize)]
-// pub struct Settings {
-//     pub default_action: String,
-//     pub log_violations: bool,
-//     pub notify_on_block: bool,
-//     pub strict_mode: Option<bool>, // optional
-// }
 
 #[derive(PartialEq, Eq, Hash, Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
@@ -47,15 +38,6 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     Ok(config)
 }
-
-
-// Need to properly test the configuration and parsing.
-
-
-// Generally I want good error messages, and I think that I will output errors
-// to a single location just like skhd does.
-
-
 
 // #[cfg(test)]
 // mod tests {
