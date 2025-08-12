@@ -6,22 +6,7 @@ use std::io;
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
-    let exe_dir = exe_path.parent().ok_or_else(|| {
-        std::io::Error::other("Failed to get executable directory")
-    })?;
 
-    // Build full path to `shire_daemon`
-    let daemon_path = exe_dir.join("shire_daemon");
-
-    // Check if it exists
-    if !daemon_path.exists() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("shire_daemon not found at {}", daemon_path.display()),
-        ));
-    }
-
-    // Build the launchd plist XML
     let plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -32,6 +17,7 @@ pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     <key>ProgramArguments</key>
     <array>
         <string>{}</string>
+        <string>daemon</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -53,9 +39,9 @@ pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
 </dict>
 </plist>"#,
         ctl.name,
-        daemon_path.to_str().ok_or_else(|| std::io::Error::new(
+        exe_path.to_str().ok_or_else(|| std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "shire_daemon path is not valid UTF-8"
+            "shire path is not valid UTF-8"
         ))?,
     );
 
@@ -161,20 +147,9 @@ pub struct SystemdService {
 
 pub fn install_systemd(service: &SystemdService) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
-    let exe_dir = exe_path.parent()
-        .ok_or_else(|| io::Error::other("Failed to get executable directory"))?;
-
-    // Build full path to `shire_daemon`
-    let daemon_path = exe_dir.join("shire_daemon");
-
-    if !daemon_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("shire_daemon not found at {}", daemon_path.display()),
-        ));
-    }
 
     // Create the systemd service unit text
+    // Need to add daemon argument to the ExecStart
     let unit_file = format!(
         r#"[Unit]
 Description=Shire Daemon
@@ -191,9 +166,9 @@ StandardError=append:/tmp/shire.stderr.log
 [Install]
 WantedBy=default.target
 "#,
-        daemon_path.to_str().ok_or_else(|| io::Error::new(
+        exe_path.to_str().ok_or_else(|| io::Error::new(
             io::ErrorKind::InvalidData,
-            "shire_daemon path is not valid UTF-8"
+            "shire path is not valid UTF-8"
         ))?,
     );
 
@@ -205,4 +180,9 @@ WantedBy=default.target
     fs::write(&service.service_path, unit_file)?;
 
     Ok(())
+}
+
+// Need to complete how to stop the service in MacOS first
+pub fn stop() {
+
 }

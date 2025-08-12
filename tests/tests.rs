@@ -1,6 +1,16 @@
+use std::thread;
+use crate::daemon::start_daemon;
 
 #[test]
-fn test_fail() {
+fn test_daemon_start() {
+    thread::spawn(move || {
+        // Start the shire daemon process
+        
+        start_daemon().expect("Failed to start daemon");
+
+
+    });
+
     // This test is expected to fail
     assert!(false, "This test is designed to fail");
 

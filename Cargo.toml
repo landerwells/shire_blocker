@@ -12,10 +12,6 @@ path = "src/main.rs"
 name = "shire_bridge"
 path = "src/bin/bridge.rs"
 
-[[bin]]
-name = "shire_daemon"
-path = "src/bin/daemon/main.rs"
-
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

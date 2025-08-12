@@ -1,4 +1,3 @@
-use crate::config::Block;
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::json;
@@ -12,8 +11,8 @@ use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use crate::config::*;
 
-mod config;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
@@ -25,8 +24,8 @@ enum BlockState {
     BlockedWithLock,
 }
 
-fn main() {
-    let config = config::parse_config().unwrap();
+pub fn start_daemon() {
+    let config = parse_config().unwrap();
     println!("{:?}", config);
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
 

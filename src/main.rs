@@ -1,5 +1,7 @@
 mod commands;
 mod service;
+mod daemon;
+mod config;
 use serde_json::json;
 use std::collections::HashMap;
 use clap::{Parser, Subcommand};
@@ -7,6 +9,7 @@ use commands::list_blocks;
 use std::os::unix::net::UnixStream;
 
 use crate::commands::*;
+use crate::daemon::start_daemon;
 
 #[derive(Parser)]
 #[command(
@@ -15,7 +18,7 @@ use crate::commands::*;
     author = "Lander Wells",
     about = "A tool for managing blocks and services"
 )]
-#[clap(disable_help_flag = true)]
+// #[clap(disable_help_flag = true)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
@@ -38,6 +41,11 @@ enum Commands {
         #[command(subcommand)]
         action: ServiceAction,
     },
+    /// Launch the daemon
+    Daemon {
+        #[arg(long)]
+        config: Option<String>, // e.g. duration
+    }
 }
 
 #[derive(Subcommand)]
@@ -136,5 +144,10 @@ fn main() {
                 // TODO: Implement service restart
             }
         },
+        Commands::Daemon { config } => {
+            // I want an optional parameter to specify the config file
+            println!("Starting the daemon with config {config:?}");
+            start_daemon();
+        }
     }
 }
