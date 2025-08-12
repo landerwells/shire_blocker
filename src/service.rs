@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::env;
 use std::path::PathBuf;
 use std::{fs, io::Error};
+use std::io;
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
@@ -87,7 +88,14 @@ pub fn start() -> Result<(), Error> {
         install_ctl(&ctl)?;
         ctl.start()?;
     } else {
-        println!("Not running on macOS");
+        let svc = SystemdService {
+            name: "shire.service".to_string(),
+            service_path: dirs::home_dir()
+                .unwrap()
+                .join(".config/systemd/user/shire.service"),
+        };
+
+        install_systemd(&svc)?;
     }
 
     Ok(())
@@ -143,5 +151,58 @@ pub fn install_manifest() -> std::io::Result<()> {
     let manifest_json = manifest_json.replace("type_field", "type");
     let manifest_path = manifest_dir.join("com.shire_blocker.json");
     fs::write(manifest_path, manifest_json)?;
+    Ok(())
+}
+
+pub struct SystemdService {
+    pub name: String,        // e.g. "shire.service"
+    pub service_path: PathBuf, // full path to service file
+}
+
+pub fn install_systemd(service: &SystemdService) -> Result<(), Error> {
+    let exe_path = env::current_exe()?;
+    let exe_dir = exe_path.parent()
+        .ok_or_else(|| io::Error::other("Failed to get executable directory"))?;
+
+    // Build full path to `shire_daemon`
+    let daemon_path = exe_dir.join("shire_daemon");
+
+    if !daemon_path.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("shire_daemon not found at {}", daemon_path.display()),
+        ));
+    }
+
+    // Create the systemd service unit text
+    let unit_file = format!(
+        r#"[Unit]
+Description=Shire Daemon
+After=network.target
+
+[Service]
+ExecStart={}
+Restart=always
+RestartSec=3
+Nice=-20
+StandardOutput=append:/tmp/shire.stdout.log
+StandardError=append:/tmp/shire.stderr.log
+
+[Install]
+WantedBy=default.target
+"#,
+        daemon_path.to_str().ok_or_else(|| io::Error::new(
+            io::ErrorKind::InvalidData,
+            "shire_daemon path is not valid UTF-8"
+        ))?,
+    );
+
+    // Ensure parent directory exists
+    if let Some(parent) = service.service_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::write(&service.service_path, unit_file)?;
+
     Ok(())
 }

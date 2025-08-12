@@ -1,21 +1,61 @@
 # Shire Blocker
 A simple, cross-platform, text-based configuration tool to block websites and applications.
 
-I wasn't able to get the application working on linux today. I believe that I need better testing for the bridge, or some way of testing that messages are getting passed correctly between it and the daemon.
 
-These would be considered integration testing and should the system in general, specifically loading the configuration, and being able to send messages with the bridge. It would be nice if I had a combined interface to interact between the bridge and the daemon.
+### Example usage
 
-// For testing purposes, I think it would be beneficial to have a way to 
-// pass a the configuration to the main function. This would allow us to 
-// easily test different configurations without having to read from a file.
+``` zsh
+deepwork() {
+  read "hours? > how long? (in hours): "
+  read "google_amazon? > block google/amazon? (y/n): "
+  read "stocks? > block stocks? (y/n): "
+  read "messages? > block messages? (y/n): "
 
-### Work on tomorrow
-The next big three things that I want to do.
-- Refactor old code
-- Write unit and integration tests for almost every use case for more efficient workflow
-- Installation process on linux
+  minutes=$((hours * 60))
 
-### Features
+  to_block=()
+  [[ "$stocks" == "y" ]] && to_block+=("finance")
+  [[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
+  [[ "$messages" == "y" ]] && to_block+=("silence")
+
+  echo ""
+  echo "blocking ${to_block[*]} for $hours hours."
+  echo "press any key to cancel..."
+
+  for i in {10..1}; do
+    echo -n "$i... "
+    read -t 1 -n 1 key && { echo "cancelled."; return; }
+  done
+
+  echo ""
+
+  [[ "$stocks" == "y" ]] && shire start "finance" --lock "$minutes"
+  [[ "$google_amazon" == "y" ]] && shire start "google, amazon" --lock "$minutes"
+  [[ "$messages" == "y" ]] && shire start "silence" --lock "$minutes"
+
+  ~/.local/bin/arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
+}
+```
+
+
+### Installation
+
+MacOS
+```
+shire service start
+```
+linux (for now)
+```
+shire service start
+systemctl --user daemon-reload
+systemctl --user enable shire.service
+systemctl --user start shire.service
+```
+
+### Configuration
+
+### Roadmap
+
 Before release
 - [ ] Rusqlite for lock persistence throughout reboot and otherwise
 - [ ] Need to put Firefox add-on in the store.
