@@ -12,26 +12,45 @@ const YELLOW: &str = "\x1b[33m";
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
 
-// I can refactor this to also be part of send_action_with_params
+pub fn send_action_with_params(
+    stream: &mut UnixStream,
+    action: &str,
+    params: Option<HashMap<&str, Value>>,
+) -> io::Result<String> {
+    // Build base JSON with the action
+    let mut message_json = json!({ "action": action });
+
+    // If extra params provided, merge them in
+    if let Some(map) = params {
+        for (k, v) in map {
+            message_json[k] = v;
+        }
+    }
+
+    let message_bytes = message_json.to_string().into_bytes();
+    send_length_prefixed_message(stream, &message_bytes)?;
+
+    let bytes = recv_length_prefixed_message(stream)?;
+    let response = String::from_utf8(bytes)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+    Ok(response)
+}
 pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
-    let message = json!({
-        "action": "list_blocks"
-    })
-    .to_string().into_bytes();
-
-    send_length_prefixed_message(stream, &message)?;
-
-    let bytes: Vec<u8> = recv_length_prefixed_message(stream)?;
-    let response = String::from_utf8(bytes).unwrap();
-
+    let response = send_action_with_params(stream, "list_blocks", None)?;
     let v: Value = serde_json::from_str(&response).expect("Invalid JSON");
+    
+    print_formatted_block_output(v);
+    Ok(())
+}
 
+fn print_formatted_block_output(response: Value) {
     // Ensure blocks is an object
-    let blocks = match v["blocks"].as_object() {
+    let blocks = match response["blocks"].as_object() {
         Some(obj) => obj,
         None => {
             eprintln!("Response format error: 'blocks' is not an object.");
-            return Ok(());
+            return;
         }
     };
 
@@ -67,31 +86,5 @@ pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
 
         println!("{:<width1$}  {}", name, colored_status, width1 = name_width);
     }
-
-    Ok(())
 }
 
-pub fn send_action_with_params(
-    stream: &mut UnixStream,
-    action: &str,
-    params: Option<HashMap<&str, Value>>,
-) -> io::Result<String> {
-    // Build base JSON with the action
-    let mut message_json = json!({ "action": action });
-
-    // If extra params provided, merge them in
-    if let Some(map) = params {
-        for (k, v) in map {
-            message_json[k] = v;
-        }
-    }
-
-    let message_bytes = message_json.to_string().into_bytes();
-    send_length_prefixed_message(stream, &message_bytes)?;
-
-    let bytes = recv_length_prefixed_message(stream)?;
-    let response = String::from_utf8(bytes)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-    Ok(response)
-}

@@ -183,6 +183,8 @@ WantedBy=default.target
 }
 
 // Need to complete how to stop the service in MacOS first
-pub fn stop() {
+pub fn stop() -> Result<(), Error> {
+    println!("Stopping the service");
 
+    Ok(())
 }

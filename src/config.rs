@@ -40,6 +40,8 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
         std::env::var("HOME")?
     );
 
+    // Could make sure that all blocks in the schedule are blocks that actually
+    // exist.
     let contents = fs::read_to_string(path)?;
     let config: Config = toml::from_str(&contents)?;
 

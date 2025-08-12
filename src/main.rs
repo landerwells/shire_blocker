@@ -137,6 +137,10 @@ fn main() {
             }
             ServiceAction::Stop => {
                 println!("Stopping shire service...");
+                match service::stop() {
+                    Ok(_) => println!("Shire service stopped successfully."),
+                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                }
                 // TODO: Implement service stop
             }
             ServiceAction::Restart => {

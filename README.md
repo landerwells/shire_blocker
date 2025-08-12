@@ -1,148 +1,298 @@
 # Shire Blocker
-A simple, cross-platform, text-based configuration tool to block websites and applications.
+
+A simple, cross-platform, text-based configuration tool to block websites and applications. Shire Blocker helps you maintain focus by temporarily blocking distracting websites with configurable rules, scheduling, and lock-in periods.
+
+## Features
+
+- **Cross-platform support** - Works on Linux and macOS
+- **Text-based configuration** - Simple TOML configuration files
+- **Flexible blocking** - Support for whitelist/blacklist URL patterns
+- **Time-based locks** - Lock blocks for specific durations to prevent easy bypassing
+- **Scheduling** - Automatically activate blocks during specified times
+- **Service integration** - Runs as a system service for persistent blocking
 
 ## Installation
 
-MacOS
+### Prerequisites
+- Rust toolchain (for building from source)
+- Firefox browser (primary supported browser)
+
+### Building from Source
+```bash
+git clone https://github.com/landerwells/shire_blocker.git
+cd shire_blocker
+cargo build --release
 ```
+
+### macOS Setup
+```bash
+# Build and install the binary
+cargo install --path .
+
+# Start the service
 shire service start
 ```
-linux (for now)
-```
+
+### Linux Setup
+```bash
+# Build and install the binary
+cargo install --path .
+
+# Start and enable the service
 shire service start
 systemctl --user daemon-reload
 systemctl --user enable shire.service
 systemctl --user start shire.service
 ```
 
-
 ## Usage
 
-``` zsh
-deepwork() {
-  read "hours? > how long? (in hours): "
-  read "google_amazon? > block google/amazon? (y/n): "
-  read "stocks? > block stocks? (y/n): "
-  read "messages? > block messages? (y/n): "
+### Basic Commands
 
-  minutes=$((hours * 60))
+```bash
+# List available blocks
+shire block list
 
-  to_block=()
-  [[ "$stocks" == "y" ]] && to_block+=("finance")
-  [[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
-  [[ "$messages" == "y" ]] && to_block+=("silence")
+# Start a specific block
+shire block start <block_name>
 
-  echo ""
-  echo "blocking ${to_block[*]} for $hours hours."
-  echo "press any key to cancel..."
+# Start a block with a time lock (in minutes)
+shire block start <block_name> --lock 60
 
-  for i in {10..1}; do
+# Stop a specific block
+shire block stop <block_name>
+
+# Check service status
+shire service status
+
+# Start the service
+shire service start
+
+# Stop the service
+shire service stop
+```
+
+### Deep Work Script
+
+A convenient script for starting focused work sessions. Save this as `deepwork.sh` and make it executable:
+
+```bash
+#!/bin/bash
+
+# Deep work session starter for Shire Blocker
+# Usage: ./deepwork.sh
+
+echo -n "How long? (in hours): "
+read hours
+
+echo -n "Block google/amazon? (y/n): "
+read google_amazon
+
+echo -n "Block stocks? (y/n): "
+read stocks
+
+echo -n "Block messages? (y/n): "
+read messages
+
+minutes=$((hours * 60))
+
+to_block=()
+[[ "$stocks" == "y" ]] && to_block+=("finance")
+[[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
+[[ "$messages" == "y" ]] && to_block+=("silence")
+
+echo ""
+echo "Blocking ${to_block[*]} for $hours hours."
+echo "Press any key to cancel..."
+
+for i in {10..1}; do
     echo -n "$i... "
-    read -t 1 -n 1 key && { echo "cancelled."; return; }
-  done
+    read -t 1 -n 1 key && { echo "cancelled."; exit 0; }
+done
 
-  echo ""
+echo ""
 
-  [[ "$stocks" == "y" ]] && shire start "finance" --lock "$minutes"
-  [[ "$google_amazon" == "y" ]] && shire start "google, amazon" --lock "$minutes"
-  [[ "$messages" == "y" ]] && shire start "silence" --lock "$minutes"
+[[ "$stocks" == "y" ]] && shire block start "finance" --lock "$minutes"
+[[ "$google_amazon" == "y" ]] && shire block start "google, amazon" --lock "$minutes"
+[[ "$messages" == "y" ]] && shire block start "silence" --lock "$minutes"
 
-  ~/.local/bin/arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
-}
+# Optional: Start a timer (requires arttime)
+if command -v arttime &> /dev/null; then
+    arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
+fi
 ```
 
 ## Configuration
 
-Example config
+Shire Blocker uses a TOML configuration file located at `~/.config/shire/shire.toml` (Linux) or `~/Library/Application Support/shire/shire.toml` (macOS).
 
-```
+### Configuration Structure
+
+The configuration file consists of two main sections:
+- `[[blocks]]` - Define blocking rules with names, blacklists, and whitelists
+- `[[schedule]]` - Define automatic scheduling for blocks
+
+### Example Configuration
+
+```toml
+# Block distracting social media feeds while allowing specific functionality
 [[blocks]]
-name = "Algorithmic Feeds"
+name = "algorithmic_feeds"
 active_by_default = true
+# Whitelist: Allow specific pages that are useful
 whitelist = [
-  "instagram.com/direct/inbox",
-  "instagram.com/p/*",
-  "linkedin.com/in/*",
-  "reddit.com/message/inbox",
-  "reddit.com/r/*",
-  "reddit.com/search*",
-  "reddit.com/user/*",
-  "twitter.com/i/timeline",
-  "youtube.com/@*",
-  "youtube.com/c/*",
-  "youtube.com/channel/*",
-  "youtube.com/feed/library/*",
-  "youtube.com/feed/subscriptions",
-  "youtube.com/playlist?list=*",
-  "youtube.com/results?search_query=*",
-  "youtube.com/user/*",
-  "youtube.com/watch?*"
+  "instagram.com/direct/inbox",     # Direct messages
+  "instagram.com/p/*",             # Specific posts
+  "reddit.com/r/*",                # Specific subreddits
+  "reddit.com/search*",            # Search functionality
+  "youtube.com/watch?*",           # Specific videos
+  "youtube.com/results?search_query=*", # Search results
 ]
+# Blacklist: Block main feeds and time-wasting pages
 blacklist = [
   "facebook.com",
   "instagram.com",
-  "linkedin.com",
+  "linkedin.com/feed",
   "reddit.com",
   "tiktok.com",
-  "twitter.com/home",
+  "twitter.com",
   "youtube.com",
 ]
 
+# Block stock trading and financial sites during work hours
 [[blocks]]
-name = "Stocks"
+name = "finance"
 active_by_default = false
 blacklist = [
   "robinhood.com",
   "tradingview.com",
-  "finance.yahoo.com"
+  "finance.yahoo.com",
+  "marketwatch.com"
 ]
 
+# Block major shopping and search sites for deep focus
 [[blocks]]
-name = "Internet"
-active_by_default = true
+name = "google, amazon"
+active_by_default = false
 blacklist = [
   "amazon.com",
   "google.com",
+  "shopping.google.com"
 ]
 
+# Schedule automatic blocking during work hours
 [[schedule]]
 block = "algorithmic_feeds"
 days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 start = "08:00"
 end = "18:00"
 
+# Block trading sites during market hours
 [[schedule]]
-block = "stock_sites"
-days = ["Mon", "Fri"]
+block = "finance"
+days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 start = "09:30"
 end = "16:00"
-
 ```
+
+### Block Configuration Options
+
+- `name` - Unique identifier for the block (used in CLI commands)
+- `active_by_default` - Whether this block is active when the service starts
+- `blacklist` - Array of URLs/domains to block
+- `whitelist` - Array of URLs/domains to allow (overrides blacklist)
+- URL patterns support wildcards (`*`) for flexible matching
+
+### Schedule Configuration Options
+
+- `block` - Name of the block to schedule
+- `days` - Array of days when the schedule is active
+- `start` - Time when blocking starts (24-hour format)
+- `end` - Time when blocking ends (24-hour format)
+
 ## Roadmap
 
-Before release
-- [ ] Rusqlite for lock persistence throughout reboot and otherwise
-- [ ] Need to put Firefox add-on in the store.
-- [ ] Scheduling
-- [ ] Have a timer set to refresh occasionally the active tab so that there won't be blacklisted tabs open
-- [ ] General polish and good error handling everywhere
+### Version 1.0 - Core Release
+**Target: Q3 2024**
 
-After release
-- Hotload config?
+**Critical Features:**
+- [ ] Database persistence with Rusqlite for lock state across reboots
+- [ ] Firefox add-on published to Mozilla Add-ons store
+- [ ] Scheduling system implementation
+- [ ] Automatic tab refresh to enforce active blocks
+- [ ] Comprehensive error handling and user feedback
+- [ ] Cross-platform installation packages (Linux, macOS)
 
-## Goals
-Primary goals of this project
-- Only support Firefox (possibly Safari at some point)
-- Cross-platform (Linux and MacOS first)
-- Text based configuration
-- Support for NixOS, Homebrew, and cargo installations
+**Quality & Polish:**
+- [ ] Unit and integration test coverage
+- [ ] Documentation improvements and examples
+- [ ] Performance optimization for large blocklists
+- [ ] Logging and debugging improvements
 
-Features I would consider adding
-- Do not disturb mode for mac
-- Specifying an additional configuration file to read if there are blocks that you want to keep private
-- Possibly a UI?
-- I have seen that the delay of pluckeye is quite nice, perhaps I could look into that model and see to adding that feature as an additional setting? Would need to move a lot of data into the database for this change, will likely prioritize another database change first to get a feel for rusqlite.
+### Version 1.1 - Enhanced Functionality
+**Target: Q4 2024**
 
-Things I will not add
-- Creation and deletion of block in the command line, this is literally what the config is for
+**Feature Enhancements:**
+- [ ] Configuration hot-reloading without service restart
+- [ ] Advanced scheduling with recurring patterns
+- [ ] Statistics and usage tracking
+- [ ] Import/export configuration profiles
+- [ ] Whitelist/blacklist pattern validation
+
+**Platform Support:**
+- [ ] NixOS package and configuration
+- [ ] Homebrew formula for macOS
+- [ ] Cargo installation improvements
+
+### Future Versions
+
+**Potential Features:**
+- [ ] Safari browser support
+- [ ] macOS Do Not Disturb integration  
+- [ ] Private configuration file support
+- [ ] Delay-based blocking (Pluckeye-style)
+- [ ] Simple GUI for configuration management
+- [ ] Mobile companion app (focus mode sync)
+
+## Project Goals
+
+### Core Philosophy
+
+Shire Blocker is designed to be a **simple, reliable, and effective** website blocking tool that prioritizes:
+
+- **Simplicity over feature bloat** - Text-based configuration, minimal UI complexity
+- **Reliability over convenience** - Strong lock mechanisms that can't be easily bypassed
+- **Focus over distraction** - Helping users maintain deep work sessions and healthy digital habits
+
+### Primary Objectives
+
+**🎯 Core Functionality:**
+- Firefox browser support (primary target)
+- Cross-platform compatibility (Linux and macOS)
+- Text-based TOML configuration for transparency and version control
+- Time-based locking mechanisms to prevent impulsive bypassing
+- Persistent blocking across browser restarts and system reboots
+
+**📦 Distribution & Installation:**
+- Multiple installation methods: Cargo, NixOS packages, Homebrew
+- Service-based architecture for reliable background operation
+- Easy setup and configuration for non-technical users
+
+### Future Considerations
+
+**✅ Features Under Consideration:**
+- Safari browser support for macOS users
+- macOS Do Not Disturb mode integration
+- Private configuration files for sensitive block lists
+- Delay-based blocking (inspired by Pluckeye's approach)
+- Optional simple GUI for configuration management
+- Statistics and usage insights
+
+**❌ Non-Goals:**
+
+- **Command-line block management** - Configuration should be done via TOML files for version control and transparency
+- **Chrome/Chromium support** - Focus on Firefox's robust extension ecosystem
+- **Mobile apps** - Desktop focus session tool, not a comprehensive digital wellness platform
+- **Complex scheduling** - Keep scheduling simple and predictable
+- **Social features** - No sharing, leaderboards, or social comparison features
 
