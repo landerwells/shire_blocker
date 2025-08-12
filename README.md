@@ -1,7 +1,7 @@
 # Shire Blocker
 A simple, cross-platform, text-based configuration tool to block websites and applications.
 
-### Installation
+## Installation
 
 MacOS
 ```
@@ -16,7 +16,7 @@ systemctl --user start shire.service
 ```
 
 
-### Usage
+## Usage
 
 ``` zsh
 deepwork() {
@@ -51,11 +51,74 @@ deepwork() {
 }
 ```
 
-### Configuration
+## Configuration
 
 Example config
 
-### Roadmap
+```
+[[blocks]]
+name = "Algorithmic Feeds"
+active_by_default = true
+whitelist = [
+  "instagram.com/direct/inbox",
+  "instagram.com/p/*",
+  "linkedin.com/in/*",
+  "reddit.com/message/inbox",
+  "reddit.com/r/*",
+  "reddit.com/search*",
+  "reddit.com/user/*",
+  "twitter.com/i/timeline",
+  "youtube.com/@*",
+  "youtube.com/c/*",
+  "youtube.com/channel/*",
+  "youtube.com/feed/library/*",
+  "youtube.com/feed/subscriptions",
+  "youtube.com/playlist?list=*",
+  "youtube.com/results?search_query=*",
+  "youtube.com/user/*",
+  "youtube.com/watch?*"
+]
+blacklist = [
+  "facebook.com",
+  "instagram.com",
+  "linkedin.com",
+  "reddit.com",
+  "tiktok.com",
+  "twitter.com/home",
+  "youtube.com",
+]
+
+[[blocks]]
+name = "Stocks"
+active_by_default = false
+blacklist = [
+  "robinhood.com",
+  "tradingview.com",
+  "finance.yahoo.com"
+]
+
+[[blocks]]
+name = "Internet"
+active_by_default = true
+blacklist = [
+  "amazon.com",
+  "google.com",
+]
+
+[[schedule]]
+block = "algorithmic_feeds"
+days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+start = "08:00"
+end = "18:00"
+
+[[schedule]]
+block = "stock_sites"
+days = ["Mon", "Fri"]
+start = "09:30"
+end = "16:00"
+
+```
+## Roadmap
 
 Before release
 - [ ] Rusqlite for lock persistence throughout reboot and otherwise
@@ -67,7 +130,7 @@ Before release
 After release
 - Hotload config?
 
-### Goals
+## Goals
 Primary goals of this project
 - Only support Firefox (possibly Safari at some point)
 - Cross-platform (Linux and MacOS first)
