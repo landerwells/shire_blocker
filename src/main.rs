@@ -83,6 +83,8 @@ enum ServiceAction {
     Stop,
     /// Restart the shire service
     Restart,
+    /// Uninstall the shire service and clean up all files
+    Uninstall,
 }
 
 const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
@@ -137,15 +139,22 @@ fn main() {
             }
             ServiceAction::Stop => {
                 println!("Stopping shire service...");
-                match service::stop() {
-                    Ok(_) => println!("Shire service stopped successfully."),
-                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
-                }
+                // match service::stop() {
+                //     Ok(_) => println!("Shire service stopped successfully."),
+                //     Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                // }
                 // TODO: Implement service stop
             }
             ServiceAction::Restart => {
                 println!("Restarting shire service...");
                 // TODO: Implement service restart
+            }
+            ServiceAction::Uninstall => {
+                println!("Uninstalling shire service...");
+                match service::uninstall() {
+                    Ok(_) => println!("Shire service uninstalled successfully."),
+                    Err(e) => eprintln!("Failed to uninstall shire service: {e}"),
+                }
             }
         },
         Commands::Daemon { config } => {

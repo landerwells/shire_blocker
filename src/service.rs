@@ -3,6 +3,7 @@ use std::env;
 use std::path::PathBuf;
 use std::{fs, io::Error};
 use std::io;
+use std::process::Command;
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
@@ -82,6 +83,9 @@ pub fn start() -> Result<(), Error> {
         };
 
         install_systemd(&svc)?;
+        
+        // Automate the Linux systemd commands that users previously had to run manually
+        run_systemd_commands()?;
     }
 
     Ok(())
@@ -156,7 +160,7 @@ Description=Shire Daemon
 After=network.target
 
 [Service]
-ExecStart={}
+ExecStart={} daemon
 Restart=always
 RestartSec=3
 Nice=-20
@@ -182,9 +186,170 @@ WantedBy=default.target
     Ok(())
 }
 
-// Need to complete how to stop the service in MacOS first
-pub fn stop() -> Result<(), Error> {
-    println!("Stopping the service");
+fn run_systemd_commands() -> Result<(), Error> {
+    // Run systemctl --user daemon-reload
+    let output = Command::new("systemctl")
+        .args(&["--user", "daemon-reload"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl daemon-reload: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "systemctl daemon-reload failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
+    }
+
+    // Run systemctl --user enable shire.service
+    let output = Command::new("systemctl")
+        .args(&["--user", "enable", "shire.service"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl enable: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "systemctl enable failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
+    }
+
+    // Run systemctl --user start shire.service
+    let output = Command::new("systemctl")
+        .args(&["--user", "start", "shire.service"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl start: {}", e)))?;
+
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "systemctl start failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn uninstall() -> Result<(), Error> {
+    if cfg!(target_os = "macos") {
+        uninstall_macos()
+    } else {
+        uninstall_linux()
+    }
+}
+
+fn uninstall_macos() -> Result<(), Error> {
+    let home_dir = dirs::home_dir().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        )
+    })?;
+
+    // Stop the launchd service
+    let plist_path = home_dir
+        .join("Library/LaunchAgents")
+        .join("com.landerwells.shire.plist");
+
+    if plist_path.exists() {
+        let ctl = launchctl::Service::builder()
+            .name("com.landerwells.shire")
+            .plist_path(plist_path.to_str().unwrap())
+            .build();
+
+        // Stop the service (ignore errors if it's not running)
+        let _ = ctl.stop();
+        
+        // Remove the plist file
+        fs::remove_file(&plist_path).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to remove launchd plist file: {}", e),
+            )
+        })?;
+    }
+
+    // Remove Mozilla native messaging manifest
+    remove_mozilla_manifest()?;
+
+    Ok(())
+}
+
+fn uninstall_linux() -> Result<(), Error> {
+    // Stop and disable the systemd service
+    stop_systemd_service()?;
+
+    // Remove the systemd service file
+    let service_path = dirs::home_dir()
+        .unwrap()
+        .join(".config/systemd/user/shire.service");
+
+    if service_path.exists() {
+        fs::remove_file(&service_path).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to remove systemd service file: {}", e),
+            )
+        })?;
+    }
+
+    // Reload systemd daemon to reflect changes
+    let _ = Command::new("systemctl")
+        .args(&["--user", "daemon-reload"])
+        .output();
+
+    // Remove Mozilla native messaging manifest
+    remove_mozilla_manifest()?;
+
+    Ok(())
+}
+
+fn stop_systemd_service() -> Result<(), Error> {
+    // Stop the service
+    let output = Command::new("systemctl")
+        .args(&["--user", "stop", "shire.service"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl stop: {}", e)))?;
+
+    // Don't error if the service wasn't running
+    if !output.status.success() {
+        eprintln!("Warning: Failed to stop shire.service: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    // Disable the service
+    let output = Command::new("systemctl")
+        .args(&["--user", "disable", "shire.service"])
+        .output()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl disable: {}", e)))?;
+
+    // Don't error if the service wasn't enabled
+    if !output.status.success() {
+        eprintln!("Warning: Failed to disable shire.service: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    Ok(())
+}
+
+fn remove_mozilla_manifest() -> Result<(), Error> {
+    let manifest_dir = get_manifest_dir();
+    let manifest_path = manifest_dir.join("com.shire_blocker.json");
+
+    if manifest_path.exists() {
+        fs::remove_file(&manifest_path).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to remove Mozilla manifest file: {}", e),
+            )
+        })?;
+    }
 
     Ok(())
 }
