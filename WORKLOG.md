@@ -18,6 +18,7 @@
 **Accomplished:**
 - Combined daemon and cli into one for better commands 
 - Refactoring and updating README.md 
+- Working uninstall for Linux and MacOS
 
 ### August 11, 2025
 **Accomplished:**

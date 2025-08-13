@@ -64,8 +64,10 @@ pub fn start_daemon() {
         }
     });
 
-    // Set up schedule when parsing the config?
-    // I think that creating a scheduler.rs file wouldn't be a bad idea
+    // I guess this would be the scheduling or event thread since it would process
+    // not just the schedule as well, it would also need to process when locks 
+    // in the database are over. Hot reloading the config would further complicate
+    // this but I am still not done with that idea.
     thread::spawn(move || {
 
     });

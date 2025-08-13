@@ -13,6 +13,9 @@ A simple, cross-platform, text-based configuration tool to block websites and ap
 
 ## Installation
 
+> [!NOTE]
+> Currently building from source is the only way there is to install Shire Blocker. Other ways of installation are not being looked into until the Firefox add-on is published and available.
+
 ### Prerequisites
 - Rust toolchain (for building from source)
 - Firefox browser (primary supported browser)
@@ -40,9 +43,13 @@ cargo install --path .
 
 # Start and enable the service
 shire service start
-systemctl --user daemon-reload
-systemctl --user enable shire.service
-systemctl --user start shire.service
+```
+
+## Uninstallation
+
+Shire Blocker provides a uniform way to uninstall across operating systems. Simply run this command and then delete the directory.
+```
+shire service uninstall
 ```
 
 ## Usage
@@ -74,13 +81,13 @@ shire service stop
 
 ### Deep Work Script
 
-A convenient script for starting focused work sessions. Save this as `deepwork.sh` and make it executable:
+A convenient script for starting focused work sessions. Save this as `deepwork` and make it executable:
 
 ```bash
 #!/usr/bin/env bash
 
 # Deep work session starter for Shire Blocker
-# Usage: ./deepwork.sh (can alias for convenience)
+# Usage: ./deepwork (I suggest making an alias for convenience or putting it in a bin)
 
 echo -n "How long? (in hours): "
 read hours
