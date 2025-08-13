@@ -26,7 +26,11 @@ enum BlockState {
 
 pub fn start_daemon() {
     let config = parse_config().unwrap();
-    println!("{:?}", config);
+    let schedules = config.schedule;
+
+    for schedule in schedules {
+        println!("{schedule:?}");
+    }
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
 
     config.blocks.iter().for_each(|block| {
@@ -39,6 +43,8 @@ pub fn start_daemon() {
         let mut map = block_states.lock().unwrap();
         map.insert(block.clone(), state);
     });
+
+    // Update the blocks in the config based off schedule
 
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
@@ -57,6 +63,13 @@ pub fn start_daemon() {
             }
         }
     });
+
+    // Set up schedule when parsing the config?
+    // I think that creating a scheduler.rs file wouldn't be a bad idea
+    thread::spawn(move || {
+
+    });
+
 
     for stream in cli_listener.incoming() {
         match stream {
