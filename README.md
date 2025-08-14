@@ -81,6 +81,8 @@ shire service stop
 
 ### Deep Work Script
 
+Inspired by Eric "Reysu", from his [blog post](https://reysu.io/posts/automate-your-deepwork)
+
 A convenient script for starting focused work sessions. Save this as `deepwork` and make it executable:
 
 ```bash
