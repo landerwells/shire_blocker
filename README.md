@@ -14,7 +14,7 @@ A simple, cross-platform, text-based configuration tool to block websites and ap
 ## Installation
 
 > [!NOTE]
-> Currently building from source is the only way there is to install Shire Blocker. Other ways of installation are not being looked into until the Firefox add-on is published and available.
+> Currently building from source is the only way there is to install Shire Blocker. Other ways of installation will not be considered until the Firefox add-on is published and available.
 
 ### Prerequisites
 - Rust toolchain (for building from source)
@@ -27,21 +27,12 @@ cd shire_blocker
 cargo build --release
 ```
 
-### macOS Setup
+### Setup
 ```bash
 # Build and install the binary
 cargo install --path .
 
 # Start the service
-shire service start
-```
-
-### Linux Setup
-```bash
-# Build and install the binary
-cargo install --path .
-
-# Start and enable the service
 shire service start
 ```
 
@@ -50,85 +41,6 @@ shire service start
 Shire Blocker provides a uniform way to uninstall across operating systems. Simply run this command and then delete the directory.
 ```
 shire service uninstall
-```
-
-## Usage
-
-### Basic Commands
-
-```bash
-# List available blocks
-shire block list
-
-# Start a specific block
-shire block start <block_name>
-
-# Start a block with a time lock (in minutes)
-shire block start <block_name> --lock 60
-
-# Stop a specific block
-shire block stop <block_name>
-
-# Check service status
-shire service status
-
-# Start the service
-shire service start
-
-# Stop the service
-shire service stop
-```
-
-### Deep Work Script
-
-Inspired by Eric "Reysu", from his [blog post](https://reysu.io/posts/automate-your-deepwork)
-
-A convenient script for starting focused work sessions. Save this as `deepwork` and make it executable:
-
-```bash
-#!/usr/bin/env bash
-
-# Deep work session starter for Shire Blocker
-# Usage: ./deepwork (I suggest making an alias for convenience or putting it in a bin)
-
-echo -n "How long? (in hours): "
-read hours
-
-echo -n "Block google/amazon? (y/n): "
-read google_amazon
-
-echo -n "Block stocks? (y/n): "
-read stocks
-
-echo -n "Block messages? (y/n): "
-read messages
-
-minutes=$((hours * 60))
-
-to_block=()
-[[ "$stocks" == "y" ]] && to_block+=("finance")
-[[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
-[[ "$messages" == "y" ]] && to_block+=("silence")
-
-echo ""
-echo "Blocking ${to_block[*]} for $hours hours."
-echo "Press any key to cancel..."
-
-for i in {10..1}; do
-    echo -n "$i... "
-    read -t 1 -n 1 key && { echo "cancelled."; exit 0; }
-done
-
-echo ""
-
-[[ "$stocks" == "y" ]] && shire block start "finance" --lock "$minutes"
-[[ "$google_amazon" == "y" ]] && shire block start "google, amazon" --lock "$minutes"
-[[ "$messages" == "y" ]] && shire block start "silence" --lock "$minutes"
-
-# Optional: Start a timer (requires arttime)
-if command -v arttime &> /dev/null; then
-    arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
-fi
 ```
 
 ## Configuration
@@ -218,6 +130,82 @@ end = "16:00"
 - `days` - Array of days when the schedule is active
 - `start` - Time when blocking starts (24-hour format)
 - `end` - Time when blocking ends (24-hour format)
+
+## Usage
+
+### Basic Commands
+
+```bash
+# List available blocks
+shire block list
+
+# Start a specific block
+shire block start <block_name>
+
+# Start a block with a time lock (in minutes)
+shire block start <block_name> --lock 60
+
+# Stop a specific block
+shire block stop <block_name>
+
+# Check service status
+shire service status
+
+# Start the service
+shire service start
+
+# Stop the service
+shire service stop
+```
+
+### Deep Work Script
+
+Inspired by Eric "Reysu", from his [blog post](https://reysu.io/posts/automate-your-deepwork).
+
+A convenient script for starting focused work sessions. Save this as `deepwork`, make sure its executable, and put it in your PATH. Rename the categories to coincide with the blocks in shire.toml.
+
+```bash
+#!/usr/bin/env bash
+
+echo -n "How long? (in hours): "
+read hours
+
+echo -n "Block google/amazon? (y/n): "
+read google_amazon
+
+echo -n "Block stocks? (y/n): "
+read stocks
+
+echo -n "Block messages? (y/n): "
+read messages
+
+minutes=$((hours * 60))
+
+to_block=()
+[[ "$stocks" == "y" ]] && to_block+=("finance")
+[[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
+[[ "$messages" == "y" ]] && to_block+=("silence")
+
+echo ""
+echo "Blocking ${to_block[*]} for $hours hours."
+echo "Press any key to cancel..."
+
+for i in {10..1}; do
+    echo -n "$i... "
+    read -t 1 -n 1 key && { echo "cancelled."; exit 0; }
+done
+
+echo ""
+
+[[ "$stocks" == "y" ]] && shire block start "finance" --lock "$minutes"
+[[ "$google_amazon" == "y" ]] && shire block start "google, amazon" --lock "$minutes"
+[[ "$messages" == "y" ]] && shire block start "silence" --lock "$minutes"
+
+# Optional: Start a timer (requires arttime)
+if command -v arttime &> /dev/null; then
+    arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
+fi
+```
 
 ## Roadmap
 

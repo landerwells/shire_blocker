@@ -1,6 +1,7 @@
 # Shire Blocker Development Log
 
 ## Next Priority Tasks
+- Currently switching to a tab, or going through
 - Maybe locking persistence first
 - Scheduling?
 - Add a way to pass a config file into the daemon to start it
