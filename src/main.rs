@@ -139,15 +139,23 @@ fn main() {
             }
             ServiceAction::Stop => {
                 println!("Stopping shire service...");
-                // match service::stop() {
-                //     Ok(_) => println!("Shire service stopped successfully."),
-                //     Err(e) => eprintln!("Failed to stop shire service: {e}"),
-                // }
-                // TODO: Implement service stop
+                match service::stop() {
+                    Ok(_) => println!("Shire service stopped successfully."),
+                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                }
             }
             ServiceAction::Restart => {
                 println!("Restarting shire service...");
-                // TODO: Implement service restart
+                match service::stop() {
+                    Ok(_) => {
+                        println!("Shire service stopped successfully.");
+                        match service::start() {
+                            Ok(_) => println!("Shire service restarted successfully."),
+                            Err(e) => eprintln!("Failed to start shire service after stop: {e}"),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                }
             }
             ServiceAction::Uninstall => {
                 println!("Uninstalling shire service...");

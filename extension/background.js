@@ -26,14 +26,34 @@ function sendUrlToNative(url) {
 function handleTabActivated(activeInfo) {
   browser.tabs.get(activeInfo.tabId).then((tab) => {
     if (tab.url && !tab.url.startsWith("about:")) {
-      sendUrlToNative(tab.url);
+      sendUrlToNative(tab.url).then((result) => {
+        if (result.blocked) {
+          // Send message to content script to block the page
+          browser.tabs.sendMessage(activeInfo.tabId, {
+            action: "blockPage",
+            url: tab.url
+          }).catch((error) => {
+            console.log("Could not send block message to tab:", error);
+          });
+        }
+      });
     }
   });
 }
 
 function handleTabUpdated(tabId, changeInfo, tab) {
   if (changeInfo.url && !changeInfo.url.startsWith("about:")) {
-    sendUrlToNative(changeInfo.url);
+    sendUrlToNative(changeInfo.url).then((result) => {
+      if (result.blocked) {
+        // Send message to content script to block the page
+        browser.tabs.sendMessage(tabId, {
+          action: "blockPage",
+          url: changeInfo.url
+        }).catch((error) => {
+          console.log("Could not send block message to tab:", error);
+        });
+      }
+    });
   }
 }
 
@@ -53,5 +73,3 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep the message channel open for async response
   }
 });
-
-console.log("Background.js has started!");

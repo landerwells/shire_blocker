@@ -1,7 +1,8 @@
 # Shire Blocker Development Log
 
 ## Next Priority Tasks
-- Currently switching to a tab, or going through
+- Currently, activating a block all do nothing to block sites
+- Look into persistent bridge architecture
 - Maybe locking persistence first
 - Scheduling?
 - Add a way to pass a config file into the daemon to start it
@@ -14,6 +15,11 @@
 ---
 
 ## Daily Work Log
+
+### August 14, 2025
+**Accomplished:**
+- Fixed bug where switching tabs, or following links wouldn't block a page.
+- Finished implementing all commands for CLI
 
 ### August 12, 2025
 **Accomplished:**

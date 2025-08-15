@@ -238,6 +238,14 @@ fn run_systemd_commands() -> Result<(), Error> {
     Ok(())
 }
 
+pub fn stop() -> Result<(), Error> {
+    if cfg!(target_os = "macos") {
+        stop_macos()
+    } else {
+        stop_linux()
+    }
+}
+
 pub fn uninstall() -> Result<(), Error> {
     if cfg!(target_os = "macos") {
         uninstall_macos()
@@ -246,7 +254,7 @@ pub fn uninstall() -> Result<(), Error> {
     }
 }
 
-fn uninstall_macos() -> Result<(), Error> {
+fn stop_macos() -> Result<(), Error> {
     let home_dir = dirs::home_dir().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -266,9 +274,34 @@ fn uninstall_macos() -> Result<(), Error> {
             .build();
 
         // Stop the service (ignore errors if it's not running)
-        let _ = ctl.stop();
-        
-        // Remove the plist file
+        ctl.stop().map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to stop launchd service: {}", e),
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn uninstall_macos() -> Result<(), Error> {
+    // Stop the service first
+    let _ = stop_macos(); // Ignore errors if service isn't running
+
+    let home_dir = dirs::home_dir().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        )
+    })?;
+
+    // Remove the plist file
+    let plist_path = home_dir
+        .join("Library/LaunchAgents")
+        .join("com.landerwells.shire.plist");
+
+    if plist_path.exists() {
         fs::remove_file(&plist_path).map_err(|e| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -283,9 +316,13 @@ fn uninstall_macos() -> Result<(), Error> {
     Ok(())
 }
 
+// fn stop_linux() -> Result<(), Error> {
+    // stop_systemd_service()
+// }
+
 fn uninstall_linux() -> Result<(), Error> {
     // Stop and disable the systemd service
-    stop_systemd_service()?;
+    stop_linux()?;
 
     // Remove the systemd service file
     let service_path = dirs::home_dir()
@@ -312,7 +349,7 @@ fn uninstall_linux() -> Result<(), Error> {
     Ok(())
 }
 
-fn stop_systemd_service() -> Result<(), Error> {
+fn stop_linux() -> Result<(), Error> {
     // Stop the service
     let output = Command::new("systemctl")
         .args(&["--user", "stop", "shire.service"])

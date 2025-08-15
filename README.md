@@ -14,7 +14,7 @@ A simple, cross-platform, text-based configuration tool to block websites and ap
 ## Installation
 
 > [!NOTE]
-> Currently building from source is the only way there is to install Shire Blocker. Other ways of installation will not be considered until the Firefox add-on is published and available.
+> Currently building from source is the only way there is to install Shire Blocker. Other ways of installation will not be considered until the Firefox add-on is published and available. As the add-on is not available yet on Firefox, the only way to load the add-on is manually through "about:debugging".
 
 ### Prerequisites
 - Rust toolchain (for building from source)
@@ -250,6 +250,7 @@ fi
 - [ ] Delay-based blocking (Pluckeye-style)
 - [ ] Simple GUI for configuration management
 - [ ] Mobile companion app (focus mode sync)
+- [ ] Light and dark mode setting in configuration for block page
 
 ## Project Goals
 

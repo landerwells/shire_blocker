@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+echo -n "How long? (in hours): "
+read hours
+
+echo -n "Block google/amazon? (y/n): "
+read google_amazon
+
+echo -n "Block stocks? (y/n): "
+read stocks
+
+echo -n "Block messages? (y/n): "
+read messages
+
+minutes=$((hours * 60))
+
+to_block=()
+[[ "$stocks" == "y" ]] && to_block+=("finance")
+[[ "$google_amazon" == "y" ]] && to_block+=("google, amazon")
+[[ "$messages" == "y" ]] && to_block+=("silence")
+
+echo ""
+echo "Blocking ${to_block[*]} for $hours hours."
+echo "Press any key to cancel..."
+
+for i in {10..1}; do
+    echo -n "$i... "
+    read -t 1 -n 1 key && { echo "cancelled."; exit 0; }
+done
+
+echo ""
+
+[[ "$stocks" == "y" ]] && shire block start "finance" --lock "$minutes"
+[[ "$google_amazon" == "y" ]] && shire block start "google, amazon" --lock "$minutes"
+[[ "$messages" == "y" ]] && shire block start "silence" --lock "$minutes"
+
+# Optional: Start a timer (requires arttime)
+if command -v arttime &> /dev/null; then
+    arttime --nolearn -a butterfly -t "deep work time – blocking distractions" -g "${hours}h"
+fi
+

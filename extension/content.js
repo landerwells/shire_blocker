@@ -102,6 +102,14 @@
     checkIfBlocked();
   }
 
+  // Listen for messages from background script
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "blockPage") {
+      console.log("Received block message from background script");
+      displayBlockedPage();
+    }
+  });
+
   console.log("Content script loaded for:", window.location.href);
 })();
 
