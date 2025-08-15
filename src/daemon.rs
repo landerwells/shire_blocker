@@ -10,7 +10,8 @@ use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use chrono::{Local, Timelike, Datelike};
+use std::{thread, time::Duration};
 use crate::config::*;
 
 
@@ -24,13 +25,115 @@ enum BlockState {
     BlockedWithLock,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+enum Days {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday
+}
+
+const DAY_MAP: &[(&str, Days)] = &[
+    ("Mon", Days::Monday),
+    ("Tue", Days::Tuesday),
+    ("Wed", Days::Wednesday),
+    ("Thu", Days::Thursday),
+    ("Fri", Days::Friday),
+    ("Sat", Days::Saturday),
+    ("Sun", Days::Sunday),
+];
+
+// Pretty sure there could be some good error handling cases with this event thing.
+// should put a lot of the error handling in the config parsing though.
+#[derive(Debug)]
+struct Event {
+    day: Days,
+    hour: i32, // I could constrain this to be 0-23 
+    minute: i32, // and this to be 0-59
+    action: ScheduleAction
+}
+
+#[derive(Debug)]
+enum ScheduleAction {
+    StartBlock,
+    EndBlock
+}
+
 pub fn start_daemon() {
     let config = parse_config().unwrap();
     let schedules = config.schedule;
 
+    let mut weekly_schedule: Vec<Event> = Vec::new();
+
+    // Basically, we have the entire schedule for a week. Will need to figure out 
+    // how to loop it? Can probably just get the next scheduled event, and have
+    // it wrap around when completed. Different schedules on different days should
+    // be able to be specified by simply making another schedule element for them.
+    
+
+    // Filter them into some data structure to help alleviate sorting. Essentially
+    // should have day, time, action, on what block. This should be all of the necessary
+    // data for starting and stopping blocks via schedule.
+    //
+    // From the suggestions of ChatGPT, there was the use of a min_heap which could
+    // sort all of the scheduled events and just keep popping, but I don't 
+    // necessarily like this idea, because there is no need to remove events from
+    // the data structure once they have passed. It 
+    //
+    // The data structure will contain the days, with a vector of events
+    //
+    // Eventually if I put locking into the database, there should be no way for
+    // the user to unlock their blocks by changing their configuration file.
+
+    // Build the weekly schedule
     for schedule in schedules {
-        println!("{schedule:?}");
+        for day in schedule.days {
+            // Add the start time
+            let hour = schedule.start[0..2].parse::<i32>().unwrap();
+            let minute = schedule.start[3..schedule.start.len()].parse::<i32>().unwrap();
+
+            // parse hours and minutes from time
+            let event = Event {
+                day: match DAY_MAP.iter().find(|(d, _)| *d == day.as_str()) {
+                    Some((_, d)) => d.clone(),
+                    None => continue, // Skip invalid days
+                },
+                hour,
+                minute,
+                action: ScheduleAction::StartBlock
+            };
+            weekly_schedule.push(event);
+
+            // Add the end time
+            let hour = schedule.end[0..2].parse::<i32>().unwrap();
+            let minute = schedule.end[3..schedule.end.len()].parse::<i32>().unwrap();
+            let end_event = Event {
+                day: match DAY_MAP.iter().find(|(d, _)| *d == day.as_str()) {
+                    Some((_, d)) => d.clone(),
+                    None => continue, // Skip invalid days
+                },
+                hour,
+                minute,
+                action: ScheduleAction::EndBlock
+            };
+            weekly_schedule.push(end_event);
+        }
     }
+
+    // weekly_schedule.sort_by(|a, b| {
+    //     a.day.cmp(&b.day)
+    //         .then(a.hour.cmp(&b.hour))
+    //         .then(a.minute.cmp(&b.minute))
+    // });
+    
+    for event in weekly_schedule {
+        println!("Event: {:?}", event);
+    }
+
+
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
 
     config.blocks.iter().for_each(|block| {
