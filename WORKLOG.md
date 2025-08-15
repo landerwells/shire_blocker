@@ -1,8 +1,7 @@
 # Shire Blocker Development Log
 
 ## Next Priority Tasks
-- Currently, activating a block all do nothing to block sites
-- Look into persistent bridge architecture
+- Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
 - Maybe locking persistence first
 - Scheduling?
 - Add a way to pass a config file into the daemon to start it
