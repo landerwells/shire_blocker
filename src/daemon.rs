@@ -10,8 +10,9 @@ use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
-use chrono::{Local, Timelike, Datelike};
+use chrono::{Local, Timelike, Datelike, Weekday};
 use std::{thread, time::Duration};
+use std::thread;
 use crate::config::*;
 
 
@@ -25,7 +26,7 @@ enum BlockState {
     BlockedWithLock,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord)]
 enum Days {
     Monday,
     Tuesday,
@@ -46,20 +47,78 @@ const DAY_MAP: &[(&str, Days)] = &[
     ("Sun", Days::Sunday),
 ];
 
-// Pretty sure there could be some good error handling cases with this event thing.
-// should put a lot of the error handling in the config parsing though.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Event {
     day: Days,
-    hour: i32, // I could constrain this to be 0-23 
-    minute: i32, // and this to be 0-59
+    hour: i32,
+    minute: i32,
+    block: String,
     action: ScheduleAction
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum ScheduleAction {
     StartBlock,
     EndBlock
+}
+
+// Parse time could eventually be moved into the configuration parsing? 
+// I am thinking that invalid parsing will not reload the current configuration
+// and the application will just persist if the config parsing fails.
+fn parse_time(time_str: &str) -> Result<(i32, i32), String> {
+    if time_str.len() < 5 || !time_str.contains(':') {
+        return Err(format!("Invalid time format: {time_str}"));
+    }
+    
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() != 2 {
+        return Err(format!("Invalid time format: {time_str}"));
+    }
+    
+    let hour = parts[0].parse::<i32>()
+        .map_err(|_| format!("Invalid hour: {}", parts[0]))?;
+    let minute = parts[1].parse::<i32>()
+        .map_err(|_| format!("Invalid minute: {}", parts[1]))?;
+    
+    if !(0..=23).contains(&hour) {
+        return Err(format!("Hour out of range (0-23): {hour}"));
+    }
+    if !(0..=59).contains(&minute) {
+        return Err(format!("Minute out of range (0-59): {minute}"));
+    }
+    
+    Ok((hour, minute))
+}
+
+fn parse_day(day_str: &str) -> Result<Days, String> {
+    DAY_MAP.iter()
+        .find(|(d, _)| *d == day_str)
+        .map(|(_, day)| day.clone())
+        .ok_or_else(|| format!("Invalid day: {day_str}"))
+}
+
+fn create_event(day: Days, hour: i32, minute: i32, block: String, action: ScheduleAction) -> Event {
+    Event { day, hour, minute, block, action }
+}
+
+fn weekday_to_days(weekday: Weekday) -> Days {
+    match weekday {
+        Weekday::Mon => Days::Monday,
+        Weekday::Tue => Days::Tuesday,
+        Weekday::Wed => Days::Wednesday,
+        Weekday::Thu => Days::Thursday,
+        Weekday::Fri => Days::Friday,
+        Weekday::Sat => Days::Saturday,
+        Weekday::Sun => Days::Sunday,
+    }
+}
+
+fn get_current_day_time() -> (Days, i32, i32) {
+    let now = Local::now();
+    let day = weekday_to_days(now.weekday());
+    let hour = now.hour() as i32;
+    let minute = now.minute() as i32;
+    (day, hour, minute)
 }
 
 pub fn start_daemon() {
@@ -68,71 +127,44 @@ pub fn start_daemon() {
 
     let mut weekly_schedule: Vec<Event> = Vec::new();
 
-    // Basically, we have the entire schedule for a week. Will need to figure out 
-    // how to loop it? Can probably just get the next scheduled event, and have
-    // it wrap around when completed. Different schedules on different days should
-    // be able to be specified by simply making another schedule element for them.
-    
+    // Parse configuration schedules into events for the week
 
-    // Filter them into some data structure to help alleviate sorting. Essentially
-    // should have day, time, action, on what block. This should be all of the necessary
-    // data for starting and stopping blocks via schedule.
-    //
-    // From the suggestions of ChatGPT, there was the use of a min_heap which could
-    // sort all of the scheduled events and just keep popping, but I don't 
-    // necessarily like this idea, because there is no need to remove events from
-    // the data structure once they have passed. It 
-    //
-    // The data structure will contain the days, with a vector of events
-    //
-    // Eventually if I put locking into the database, there should be no way for
-    // the user to unlock their blocks by changing their configuration file.
-
-    // Build the weekly schedule
     for schedule in schedules {
         for day in schedule.days {
-            // Add the start time
-            let hour = schedule.start[0..2].parse::<i32>().unwrap();
-            let minute = schedule.start[3..schedule.start.len()].parse::<i32>().unwrap();
-
-            // parse hours and minutes from time
-            let event = Event {
-                day: match DAY_MAP.iter().find(|(d, _)| *d == day.as_str()) {
-                    Some((_, d)) => d.clone(),
-                    None => continue, // Skip invalid days
-                },
-                hour,
-                minute,
-                action: ScheduleAction::StartBlock
+            let day_enum = match parse_day(&day) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("Skipping invalid day '{}': {}", day, e);
+                    continue;
+                }
             };
-            weekly_schedule.push(event);
+            let block_name = schedule.block.clone();
+
+            // Add the start time
+            match parse_time(&schedule.start) {
+                Ok((hour, minute)) => {
+                    weekly_schedule.push(create_event(day_enum.clone(), hour, minute, block_name.clone(), ScheduleAction::StartBlock));
+                }
+                Err(e) => {
+                    eprintln!("Skipping invalid start time '{}' for {}: {}", schedule.start, day, e);
+                    continue;
+                }
+            }
 
             // Add the end time
-            let hour = schedule.end[0..2].parse::<i32>().unwrap();
-            let minute = schedule.end[3..schedule.end.len()].parse::<i32>().unwrap();
-            let end_event = Event {
-                day: match DAY_MAP.iter().find(|(d, _)| *d == day.as_str()) {
-                    Some((_, d)) => d.clone(),
-                    None => continue, // Skip invalid days
-                },
-                hour,
-                minute,
-                action: ScheduleAction::EndBlock
-            };
-            weekly_schedule.push(end_event);
+            match parse_time(&schedule.end) {
+                Ok((hour, minute)) => {
+                    weekly_schedule.push(create_event(day_enum, hour, minute, block_name, ScheduleAction::EndBlock));
+                }
+                Err(e) => {
+                    eprintln!("Skipping invalid end time '{}' for {}: {}", schedule.end, day, e);
+                }
+            }
         }
     }
 
-    // weekly_schedule.sort_by(|a, b| {
-    //     a.day.cmp(&b.day)
-    //         .then(a.hour.cmp(&b.hour))
-    //         .then(a.minute.cmp(&b.minute))
-    // });
-    
-    for event in weekly_schedule {
-        println!("Event: {:?}", event);
-    }
-
+    // Sort the schedule chronologically
+    weekly_schedule.sort();
 
     let block_states = Arc::new(Mutex::new(HashMap::<Block, BlockState>::new()));
 
@@ -147,7 +179,7 @@ pub fn start_daemon() {
         map.insert(block.clone(), state);
     });
 
-    // Update the blocks in the config based off schedule
+    // Initialize block states based on configuration
 
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
@@ -167,14 +199,40 @@ pub fn start_daemon() {
         }
     });
 
-    // I guess this would be the scheduling or event thread since it would process
-    // not just the schedule as well, it would also need to process when locks 
-    // in the database are over. Hot reloading the config would further complicate
-    // this but I am still not done with that idea.
+    let schedule_blocks = Arc::clone(&block_states);
     thread::spawn(move || {
-
+        loop {
+            let (current_day, current_hour, current_minute) = get_current_day_time();
+            
+            // Find events that should trigger now
+            for event in &weekly_schedule {
+                if event.day == current_day && event.hour == current_hour && event.minute == current_minute {
+                    println!("Triggering event: {:?}", event);
+                    
+                    let mut map = schedule_blocks.lock().unwrap();
+                    
+                    // Find the block to update
+                    if let Some((block, state)) = map.iter_mut().find(|(b, _)| b.name == event.block) {
+                        match event.action {
+                            ScheduleAction::StartBlock => {
+                                *state = BlockState::BlockedWithLock;
+                                println!("Started block: {}", block.name);
+                            }
+                            ScheduleAction::EndBlock => {
+                                *state = BlockState::Unblocked;
+                                println!("Ended block: {}", block.name);
+                            }
+                        }
+                    } else {
+                        eprintln!("Block '{}' not found for scheduled event", event.block);
+                    }
+                }
+            }
+            
+            // Sleep for 1 minute before checking again
+            thread::sleep(Duration::from_secs(60));
+        }
     });
-
 
     for stream in cli_listener.incoming() {
         match stream {

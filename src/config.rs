@@ -39,6 +39,18 @@ pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(config)
 }
 
+
+// Just offloading some thoughts here about the parsing. I believe that the current
+// setup is that the parsing structs have to match what is in the shire.toml file,
+// but there is nothing stopping me from doing additional configuration parsing
+// to turn the data into something more useful for the daemon to use.
+//
+// Ideally I would like to transfer all configuration parsing logic into this file
+// including the schedule and blocks. I would additionally like to consolidate
+// on what the application state would look like. Configuration is a large part 
+// of what I want to optimize going further and I think this system could feel
+// super flawless with a lot of work.
+
 // #[cfg(test)]
 // mod tests {
 //     use super::*;

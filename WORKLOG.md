@@ -15,6 +15,10 @@
 
 ## Daily Work Log
 
+### August 15, 2025
+**Accomplished:**
+- Basic implementation of scheduling blocks
+
 ### August 14, 2025
 **Accomplished:**
 - Fixed bug where switching tabs, or following links wouldn't block a page.
