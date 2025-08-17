@@ -1,6 +1,5 @@
-use crate::config::*;
-use crate::state::{ApplicationState, Block as StateBlock, BlockState, initialize_application_state};
-// use serde::Serialize;
+use crate::state::{ApplicationState, Block, BlockState, initialize_application_state};
+use crate::config;
 use serde_json::Value;
 use serde_json::json;
 use shire_blocker::recv_length_prefixed_message;
@@ -11,15 +10,15 @@ use std::fs;
 use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
-pub fn start_daemon() {
-    // Properly handle errors here and say that parsing the configuration had errors
-    let config = parse_config().unwrap();
+pub fn start_daemon(config_path: Option<String>) {
+    let config = config::parse_config(config_path).unwrap();
 
     let app_state: Arc<Mutex<ApplicationState>> = initialize_application_state(config.clone());
 
@@ -42,14 +41,11 @@ pub fn start_daemon() {
         }
     });
 
-    // let schedule_blocks = Arc::clone(&block_states);
     thread::spawn(move || {
-        loop {
-            let mut count = 0;
-        }
+        // loop {
+        // }
     });
 
-    // Handle CLI connections with app_state
     for stream in cli_listener.incoming() {
         match stream {
             Ok(mut stream) => {
@@ -106,6 +102,7 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         Some("stop_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
 
+            // Change to update block state in state.rs
             if let Some(block) = app_state_guard.blocks.get_mut(&block_name) {
                 block.block_state = BlockState::Unblocked;
             } else {
@@ -163,7 +160,7 @@ fn handle_bridge_request(
 }
 
 // These functions could be refactored to avoid duplication.
-fn get_blacklist(blocks: &HashMap<String, StateBlock>) -> HashSet<String> {
+fn get_blacklist(blocks: &HashMap<String, Block>) -> HashSet<String> {
     blocks
         .values()
         .filter_map(|block| {
@@ -177,7 +174,7 @@ fn get_blacklist(blocks: &HashMap<String, StateBlock>) -> HashSet<String> {
         .collect()
 }
 
-fn get_whitelist(blocks: &HashMap<String, StateBlock>) -> HashSet<String> {
+fn get_whitelist(blocks: &HashMap<String, Block>) -> HashSet<String> {
     blocks
         .values()
         .filter_map(|block| {

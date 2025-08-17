@@ -171,9 +171,7 @@ fn main() {
             }
         },
         Commands::Daemon { config } => {
-            // I want an optional parameter to specify the config file
-            println!("Starting the daemon with config {config:?}");
-            start_daemon();
+            start_daemon(config);
         }
     }
 }

@@ -24,8 +24,11 @@ pub struct Schedule {
     pub end: String,
 }
 
-pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
-    let path = format!("{}/.config/shire/shire.toml", std::env::var("HOME")?);
+pub fn parse_config(config_path: Option<String>) -> Result<Config, Box<dyn std::error::Error>> {
+    let path = match config_path {
+        Some(custom_path) => custom_path,
+        None => format!("{}/.config/shire/shire.toml", std::env::var("HOME")?),
+    };
 
     let contents = fs::read_to_string(path)?;
     let config: Config = toml::from_str(&contents)?;

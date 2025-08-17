@@ -7,7 +7,7 @@ use std::sync::Mutex;
 #[derive(Debug, Clone)]
 pub struct ApplicationState {
     pub blocks: HashMap<String, Block>,
-    schedule: Vec<Event>,
+    pub schedule: Vec<Event>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -36,11 +36,11 @@ enum Days {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Event {
+pub struct Event {
+    block: String,
     day: Days,
     hour: i32,
     minute: i32,
-    block: String,
     action: ScheduleAction,
 }
 
@@ -61,7 +61,7 @@ enum ScheduleAction {
 }
 
 pub fn initialize_application_state(config: Config) -> Arc<Mutex<ApplicationState>> {
-    let mut application_state = Arc::new(Mutex::new(ApplicationState {
+    let application_state = Arc::new(Mutex::new(ApplicationState {
         blocks: HashMap::new(),
         schedule: Vec::new(),
     }));
@@ -86,10 +86,11 @@ pub fn initialize_application_state(config: Config) -> Arc<Mutex<ApplicationStat
             },
         );
     });
-    
 
     // Schedule initialization
-    let schedules = config.schedule;
+    // TODO: This is not working at all.
+    let schedules = config.schedule.clone();
+
     let mut weekly_schedule: Vec<Event> = Vec::new();
     for schedule in schedules {
         for day in schedule.days {
@@ -142,8 +143,9 @@ pub fn initialize_application_state(config: Config) -> Arc<Mutex<ApplicationStat
             }
         }
     }
-    weekly_schedule.sort();
 
+    weekly_schedule.sort();
+    application_state.lock().unwrap().schedule = weekly_schedule;
     application_state
 }
 

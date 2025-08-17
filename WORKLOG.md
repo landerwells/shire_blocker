@@ -3,8 +3,6 @@
 ## Next Priority Tasks
 - Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
 - Maybe locking persistence first
-- Scheduling?
-- Add a way to pass a config file into the daemon to start it
 - Write unit and integration tests for almost every use case for more efficient workflow
 
 ## Future Features
@@ -14,6 +12,12 @@
 ---
 
 ## Daily Work Log
+
+### August 17, 2025
+**Accomplished:**
+- Created state.rs to handle all state management and removed logic from daemon.rs
+- Reverted logic for scheduling blocks to get a better version working with the new state management system
+- Added passing a config path to the daemon for testing
 
 ### August 15, 2025
 **Accomplished:**
