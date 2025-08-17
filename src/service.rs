@@ -1,9 +1,9 @@
 use serde::Serialize;
 use std::env;
-use std::path::PathBuf;
-use std::{fs, io::Error};
 use std::io;
+use std::path::PathBuf;
 use std::process::Command;
+use std::{fs, io::Error};
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
@@ -83,7 +83,7 @@ pub fn start() -> Result<(), Error> {
         };
 
         install_systemd(&svc)?;
-        
+
         // Automate the Linux systemd commands that users previously had to run manually
         run_systemd_commands()?;
     }
@@ -145,7 +145,7 @@ pub fn install_manifest() -> std::io::Result<()> {
 }
 
 pub struct SystemdService {
-    pub name: String,        // e.g. "shire.service"
+    pub name: String,          // e.g. "shire.service"
     pub service_path: PathBuf, // full path to service file
 }
 
@@ -191,7 +191,12 @@ fn run_systemd_commands() -> Result<(), Error> {
     let output = Command::new("systemctl")
         .args(&["--user", "daemon-reload"])
         .output()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl daemon-reload: {}", e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to run systemctl daemon-reload: {}", e),
+            )
+        })?;
 
     if !output.status.success() {
         return Err(io::Error::new(
@@ -207,7 +212,12 @@ fn run_systemd_commands() -> Result<(), Error> {
     let output = Command::new("systemctl")
         .args(&["--user", "enable", "shire.service"])
         .output()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl enable: {}", e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to run systemctl enable: {}", e),
+            )
+        })?;
 
     if !output.status.success() {
         return Err(io::Error::new(
@@ -223,7 +233,12 @@ fn run_systemd_commands() -> Result<(), Error> {
     let output = Command::new("systemctl")
         .args(&["--user", "start", "shire.service"])
         .output()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl start: {}", e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to run systemctl start: {}", e),
+            )
+        })?;
 
     if !output.status.success() {
         return Err(io::Error::new(
@@ -317,7 +332,7 @@ fn uninstall_macos() -> Result<(), Error> {
 }
 
 // fn stop_linux() -> Result<(), Error> {
-    // stop_systemd_service()
+// stop_systemd_service()
 // }
 
 fn uninstall_linux() -> Result<(), Error> {
@@ -354,22 +369,38 @@ fn stop_linux() -> Result<(), Error> {
     let output = Command::new("systemctl")
         .args(&["--user", "stop", "shire.service"])
         .output()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl stop: {}", e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to run systemctl stop: {}", e),
+            )
+        })?;
 
     // Don't error if the service wasn't running
     if !output.status.success() {
-        eprintln!("Warning: Failed to stop shire.service: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Warning: Failed to stop shire.service: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     // Disable the service
     let output = Command::new("systemctl")
         .args(&["--user", "disable", "shire.service"])
         .output()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to run systemctl disable: {}", e)))?;
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to run systemctl disable: {}", e),
+            )
+        })?;
 
     // Don't error if the service wasn't enabled
     if !output.status.success() {
-        eprintln!("Warning: Failed to disable shire.service: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Warning: Failed to disable shire.service: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     Ok(())

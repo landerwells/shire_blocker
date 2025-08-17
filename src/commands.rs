@@ -1,7 +1,7 @@
-use shire_blocker::recv_length_prefixed_message;
-use shire_blocker::send_length_prefixed_message;
 use serde_json::Value;
 use serde_json::json;
+use shire_blocker::recv_length_prefixed_message;
+use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
 use std::io;
 use std::os::unix::net::UnixStream;
@@ -31,15 +31,15 @@ pub fn send_action_with_params(
     send_length_prefixed_message(stream, &message_bytes)?;
 
     let bytes = recv_length_prefixed_message(stream)?;
-    let response = String::from_utf8(bytes)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let response =
+        String::from_utf8(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     Ok(response)
 }
 pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
     let response = send_action_with_params(stream, "list_blocks", None)?;
     let v: Value = serde_json::from_str(&response).expect("Invalid JSON");
-    
+
     print_formatted_block_output(v);
     Ok(())
 }
@@ -55,7 +55,12 @@ fn print_formatted_block_output(response: Value) {
     };
 
     // Determine max width for alignment
-    let name_width = blocks.keys().map(|k| k.len()).max().unwrap_or(10).max("Block Name".len());
+    let name_width = blocks
+        .keys()
+        .map(|k| k.len())
+        .max()
+        .unwrap_or(10)
+        .max("Block Name".len());
     let status_width = "Status".len();
 
     // Print header
@@ -87,4 +92,3 @@ fn print_formatted_block_output(response: Value) {
         println!("{:<width1$}  {}", name, colored_status, width1 = name_width);
     }
 }
-

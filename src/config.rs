@@ -1,6 +1,6 @@
-use std::fs;
 use serde::Deserialize;
 use serde::Serialize;
+use std::fs;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -24,39 +24,129 @@ pub struct Schedule {
     pub end: String,
 }
 
-// I don't really understand this return type
 pub fn parse_config() -> Result<Config, Box<dyn std::error::Error>> {
-    let path = format!(
-        "{}/.config/shire/shire.toml",
-        std::env::var("HOME")?
-    );
+    let path = format!("{}/.config/shire/shire.toml", std::env::var("HOME")?);
 
-    // Could make sure that all blocks in the schedule are blocks that actually
-    // exist.
     let contents = fs::read_to_string(path)?;
     let config: Config = toml::from_str(&contents)?;
+
+    validate_blocks_exist(&config)?;
+    validate_schedule_times(&config)?;
 
     Ok(config)
 }
 
+fn validate_blocks_exist(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let block_names: std::collections::HashSet<&String> =
+        config.blocks.iter().map(|b| &b.name).collect();
 
-// Just offloading some thoughts here about the parsing. I believe that the current
-// setup is that the parsing structs have to match what is in the shire.toml file,
-// but there is nothing stopping me from doing additional configuration parsing
-// to turn the data into something more useful for the daemon to use.
-//
-// Ideally I would like to transfer all configuration parsing logic into this file
-// including the schedule and blocks. I would additionally like to consolidate
-// on what the application state would look like. Configuration is a large part 
-// of what I want to optimize going further and I think this system could feel
-// super flawless with a lot of work.
+    for schedule in &config.schedule {
+        if !block_names.contains(&schedule.block) {
+            return Err(format!(
+                "Schedule references non-existent block: '{}'.",
+                schedule.block
+            )
+            .into());
+        }
+    }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_name() {
-//
-//     }
-// }
+    Ok(())
+}
+
+fn validate_day(day: &str) -> Result<(), String> {
+    let valid_days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    let day_lower = day.to_lowercase();
+
+    if !valid_days.contains(&day_lower.as_str()) {
+        return Err(format!(
+            "Invalid day: '{}'. Valid days are: {}",
+            day,
+            valid_days.join(", ")
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_schedule_times(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    for schedule in &config.schedule {
+        for day in &schedule.days {
+            validate_day(day)?;
+        }
+
+        validate_time(&schedule.start).map_err(|e| {
+            format!(
+                "Invalid start time in schedule for block '{}': {}",
+                schedule.block, e
+            )
+        })?;
+        validate_time(&schedule.end).map_err(|e| {
+            format!(
+                "Invalid end time in schedule for block '{}': {}",
+                schedule.block, e
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn validate_time(time_str: &str) -> Result<(i32, i32), String> {
+    if time_str.len() < 5 || !time_str.contains(':') {
+        return Err(format!("Invalid time format: {time_str}"));
+    }
+
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() != 2 {
+        return Err(format!("Invalid time format: {time_str}"));
+    }
+
+    let hour = parts[0]
+        .parse::<i32>()
+        .map_err(|_| format!("Invalid hour: {}", parts[0]))?;
+    let minute = parts[1]
+        .parse::<i32>()
+        .map_err(|_| format!("Invalid minute: {}", parts[1]))?;
+
+    if !(0..=23).contains(&hour) {
+        return Err(format!("Hour out of range (0-23): {hour}"));
+    }
+    if !(0..=59).contains(&minute) {
+        return Err(format!("Minute out of range (0-59): {minute}"));
+    }
+
+    Ok((hour, minute))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_day_valid_days() {
+        assert!(validate_day("Mon").is_ok());
+        assert!(validate_day("Tue").is_ok());
+        assert!(validate_day("Wed").is_ok());
+        assert!(validate_day("Thu").is_ok());
+        assert!(validate_day("Fri").is_ok());
+        assert!(validate_day("Sat").is_ok());
+        assert!(validate_day("Sun").is_ok());
+    }
+
+    #[test]
+    fn test_validate_day_invalid_days() {
+        assert!(validate_day("monday").is_err());
+        assert!(validate_day("xyz").is_err());
+        assert!(validate_day("").is_err());
+        assert!(validate_day("123").is_err());
+    }
+
+    #[test]
+    fn test_validate_day_error_message() {
+        let result = validate_day("invalid");
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(error.contains("Invalid day: 'invalid'"));
+        assert!(error.contains("Valid days are:"));
+    }
+}

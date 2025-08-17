@@ -1,10 +1,7 @@
-use std::io::{self, Write, Read};
+use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 
-pub fn send_length_prefixed_message(
-    stream: &mut UnixStream,
-    message: &[u8],
-) -> io::Result<()> {
+pub fn send_length_prefixed_message(stream: &mut UnixStream, message: &[u8]) -> io::Result<()> {
     let length = (message.len() as u32).to_be_bytes();
     stream.write_all(&length)?;
     stream.write_all(message)?;
