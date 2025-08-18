@@ -1,4 +1,4 @@
-use crate::state::{ApplicationState, Block, BlockState, initialize_application_state};
+use crate::state::*;
 use crate::config;
 use serde_json::Value;
 use serde_json::json;
@@ -10,7 +10,6 @@ use std::fs;
 use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -41,6 +40,7 @@ pub fn start_daemon(config_path: Option<String>) {
         }
     });
 
+    // How to structure this thread in order to not have empty waiting?
     thread::spawn(move || {
         // loop {
         // }
@@ -88,11 +88,7 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         // I could even make a function purely for changing the state of the blocks
         Some("start_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-            if let Some(block) = app_state_guard.blocks.get_mut(&block_name) {
-                block.block_state = BlockState::Blocked;
-            } else {
-                eprintln!("Block '{block_name}' not found.");
-            }
+            update_block(&mut app_state_guard, &block_name, BlockState::Blocked);
 
             let message = serde_json::json!({ "status": "started", "block": block_name })
                 .to_string()
@@ -101,13 +97,7 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         }
         Some("stop_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-
-            // Change to update block state in state.rs
-            if let Some(block) = app_state_guard.blocks.get_mut(&block_name) {
-                block.block_state = BlockState::Unblocked;
-            } else {
-                eprintln!("Block '{block_name}' not found.");
-            }
+            update_block(&mut app_state_guard, &block_name, BlockState::Unblocked);
 
             let message = serde_json::json!({ "status": "stopped", "block": block_name })
                 .to_string()

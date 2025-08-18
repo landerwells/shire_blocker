@@ -187,8 +187,8 @@ fn parse_day(day_str: &str) -> Result<Days, String> {
         .ok_or_else(|| format!("Invalid day: {day_str}"))
 }
 
-fn update_block(application_state: &mut ApplicationState, block_name: String, new_state: BlockState) {
-    if let Some(block) = application_state.blocks.get_mut(&block_name) {
+pub fn update_block(application_state: &mut ApplicationState, block_name: &str, new_state: BlockState) {
+    if let Some(block) = application_state.blocks.get_mut(block_name) {
         block.block_state = new_state;
     } else {
         eprintln!("Block '{}' not found in application state", block_name);

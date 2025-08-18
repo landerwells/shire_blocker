@@ -2,6 +2,7 @@
 
 ## Next Priority Tasks
 - Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
+- Need better error handling and propagation, especially when starting the daemon
 - Maybe locking persistence first
 - Write unit and integration tests for almost every use case for more efficient workflow
 

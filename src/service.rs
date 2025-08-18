@@ -76,7 +76,7 @@ pub fn start() -> Result<(), Error> {
         ctl.start()?;
     } else {
         let svc = SystemdService {
-            name: "shire.service".to_string(),
+            // name: "shire.service".to_string(),
             service_path: dirs::home_dir()
                 .unwrap()
                 .join(".config/systemd/user/shire.service"),
@@ -145,7 +145,7 @@ pub fn install_manifest() -> std::io::Result<()> {
 }
 
 pub struct SystemdService {
-    pub name: String,          // e.g. "shire.service"
+    // pub name: String,          // e.g. "shire.service"
     pub service_path: PathBuf, // full path to service file
 }
 
@@ -189,7 +189,7 @@ WantedBy=default.target
 fn run_systemd_commands() -> Result<(), Error> {
     // Run systemctl --user daemon-reload
     let output = Command::new("systemctl")
-        .args(&["--user", "daemon-reload"])
+        .args(["--user", "daemon-reload"])
         .output()
         .map_err(|e| {
             io::Error::new(
@@ -210,7 +210,7 @@ fn run_systemd_commands() -> Result<(), Error> {
 
     // Run systemctl --user enable shire.service
     let output = Command::new("systemctl")
-        .args(&["--user", "enable", "shire.service"])
+        .args(["--user", "enable", "shire.service"])
         .output()
         .map_err(|e| {
             io::Error::new(
@@ -231,7 +231,7 @@ fn run_systemd_commands() -> Result<(), Error> {
 
     // Run systemctl --user start shire.service
     let output = Command::new("systemctl")
-        .args(&["--user", "start", "shire.service"])
+        .args(["--user", "start", "shire.service"])
         .output()
         .map_err(|e| {
             io::Error::new(
