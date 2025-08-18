@@ -1,4 +1,5 @@
 use crate::config;
+use crate::state;
 use crate::state::*;
 use chrono::Datelike;
 use serde_json::Value;
@@ -46,13 +47,20 @@ pub fn start_daemon(config_path: Option<String>) {
     let schedule_app_state = Arc::clone(&app_state);
     thread::spawn(move || {
         // Get current day and time
-        let mut current_day = chrono::Local::now().weekday();
-        let mut current_time = chrono::Local::now().time();
+        let current_day: OrderableWeekday = state::OrderableWeekday(chrono::Local::now().weekday());
+        let current_time = chrono::Local::now().time();
 
-        println!("Current day: {:?}, current time {:?}", current_day, current_time);
-        
+        // println!("Current day: {:?}, current time {:?}", current_day, current_time);
+
         // Iterate through schedule until the next element
-        
+        // Find the next event (greater than now)
+        let mut next_event = None;
+        for ev in &schedule_app_state.lock().unwrap().schedule {
+            if ev.day > current_day || (ev.day == current_day && ev.time > current_time) {
+                next_event = Some(ev.clone());
+                break;
+            }
+        }
 
 
 
@@ -175,7 +183,7 @@ fn get_blacklist(blocks: &HashMap<String, Block>) -> HashSet<String> {
                 None
             }
         })
-        .flatten()
+    .flatten()
         .collect()
 }
 
@@ -189,7 +197,7 @@ fn get_whitelist(blocks: &HashMap<String, Block>) -> HashSet<String> {
                 None
             }
         })
-        .flatten()
+    .flatten()
         .collect()
 }
 

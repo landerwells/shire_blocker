@@ -49,10 +49,10 @@ pub enum BlockState {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Event {
-    block: String,
-    day: OrderableWeekday,
-    time: NaiveTime,
-    action: ScheduleAction,
+    pub block: String,
+    pub day: OrderableWeekday,
+    pub time: NaiveTime,
+    pub action: ScheduleAction,
 }
 
 const DAY_MAP: &[(&str, Weekday)] = &[
