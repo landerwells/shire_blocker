@@ -41,9 +41,15 @@ pub fn start_daemon(config_path: Option<String>) {
     });
 
     // How to structure this thread in order to not have empty waiting?
+    let schedule_app_state = Arc::clone(&app_state);
     thread::spawn(move || {
-        // loop {
-        // }
+        // Get current day and time
+        
+        // Iterate through schedule until the next element has
+
+
+        loop {
+        }
     });
 
     for stream in cli_listener.incoming() {
@@ -149,7 +155,8 @@ fn handle_bridge_request(
     Ok(())
 }
 
-// These functions could be refactored to avoid duplication.
+// These functions could be refactored to avoid duplication, and probably put into
+// state.rs
 fn get_blacklist(blocks: &HashMap<String, Block>) -> HashSet<String> {
     blocks
         .values()
