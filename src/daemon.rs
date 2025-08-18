@@ -1,5 +1,6 @@
-use crate::state::*;
 use crate::config;
+use crate::state::*;
+use chrono::Datelike;
 use serde_json::Value;
 use serde_json::json;
 use shire_blocker::recv_length_prefixed_message;
@@ -40,16 +41,23 @@ pub fn start_daemon(config_path: Option<String>) {
         }
     });
 
+    // println!("{:?}", app_state.lock().unwrap().schedule);
     // How to structure this thread in order to not have empty waiting?
     let schedule_app_state = Arc::clone(&app_state);
     thread::spawn(move || {
         // Get current day and time
+        let mut current_day = chrono::Local::now().weekday();
+        let mut current_time = chrono::Local::now().time();
+
+        println!("Current day: {:?}, current time {:?}", current_day, current_time);
         
-        // Iterate through schedule until the next element has
+        // Iterate through schedule until the next element
+        
 
 
-        loop {
-        }
+
+        // loop {
+        // }
     });
 
     for stream in cli_listener.incoming() {
