@@ -12,7 +12,7 @@ use std::fs;
 use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
@@ -26,18 +26,27 @@ pub fn start_daemon(config_path: Option<String>) {
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
 
-    let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
+    // Channel for notifying bridge thread of state changes
+    let (state_tx, state_rx) = mpsc::channel();
+
+    // TODO: link to where someone can download the browser extension.
+    let bridge_listener = UnixStream::connect(BRIDGE_SOCKET_PATH).expect("Could not connect to browser extension.");
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    // Pass application state to bridge thread
+    // Bridge thread - waits for state change notifications and sends state to bridge
     let bridge_app_state = Arc::clone(&app_state);
+    let mut bridge_stream = bridge_listener;
     thread::spawn(move || {
-        for stream in bridge_listener.incoming() {
-            match stream {
-                Ok(mut stream) => {
-                    let _ = handle_bridge_request(&mut stream, Arc::clone(&bridge_app_state));
-                }
-                Err(e) => eprintln!("Bridge connection failed: {e}"),
+        // Send initial state
+        if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
+            eprintln!("Failed to send initial state to bridge: {e}");
+        }
+        
+        // Wait for state change notifications
+        while let Ok(_) = state_rx.recv() {
+            if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
+                eprintln!("Failed to send state update to bridge: {e}");
+                break;
             }
         }
     });
@@ -62,8 +71,6 @@ pub fn start_daemon(config_path: Option<String>) {
             }
         }
 
-
-
         // loop {
         // }
     });
@@ -72,9 +79,10 @@ pub fn start_daemon(config_path: Option<String>) {
         match stream {
             Ok(mut stream) => {
                 let cli_app_state = Arc::clone(&app_state);
+                let cli_state_tx = state_tx.clone();
 
                 thread::spawn(move || {
-                    handle_cli_request(&mut stream, cli_app_state);
+                    handle_cli_request(&mut stream, cli_app_state, cli_state_tx);
                 });
             }
             Err(e) => eprintln!("CLI connection failed: {e}"),
@@ -82,7 +90,7 @@ pub fn start_daemon(config_path: Option<String>) {
     }
 }
 
-fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationState>>) {
+fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationState>>, state_tx: mpsc::Sender<()>) {
     // Need to have better error handling here
     let response = recv_length_prefixed_message(stream).unwrap();
     let response_str = String::from_utf8_lossy(&response);
@@ -111,6 +119,9 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         Some("start_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
             update_block(&mut app_state_guard, &block_name, BlockState::Blocked);
+            
+            // Notify bridge thread of state change
+            let _ = state_tx.send(());
 
             let message = serde_json::json!({ "status": "started", "block": block_name })
                 .to_string()
@@ -120,6 +131,9 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         Some("stop_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
             update_block(&mut app_state_guard, &block_name, BlockState::Unblocked);
+            
+            // Notify bridge thread of state change
+            let _ = state_tx.send(());
 
             let message = serde_json::json!({ "status": "stopped", "block": block_name })
                 .to_string()
@@ -130,142 +144,3 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
     }
 }
 
-fn handle_bridge_request(
-    stream: &mut UnixStream,
-    app_state: Arc<Mutex<ApplicationState>>,
-) -> io::Result<()> {
-    // Get black/white lists
-    let app_state_guard = app_state.lock().unwrap();
-    let blacklist = get_blacklist(&app_state_guard.blocks);
-    let whitelist = get_whitelist(&app_state_guard.blocks);
-
-    // Receive length-prefixed JSON request
-    let raw_request = recv_length_prefixed_message(stream)?;
-    let request_str = String::from_utf8_lossy(&raw_request);
-    println!("Bridge request: {}", request_str);
-
-    let v: Value = serde_json::from_str(request_str.trim()).unwrap_or_else(|_| {
-        eprintln!("Invalid JSON from bridge.");
-        json!({})
-    });
-
-    let url = v["url"].as_str().unwrap_or("").to_string();
-    let url = remove_http_www(url);
-
-    println!("Checking URL: {}", url);
-
-    // Check if allowed or blocked
-    let allowed = !is_blacklisted(&blacklist, &url) || is_whitelisted(&whitelist, &url);
-
-    println!(
-        "{} URL from bridge: {}",
-        if allowed { "Allowed" } else { "Blocked" },
-        url
-    );
-
-    // Send JSON response with "allowed" key
-    let response_json = json!({ "allowed": allowed });
-    let response_bytes = response_json.to_string().into_bytes();
-    send_length_prefixed_message(stream, &response_bytes)?;
-
-    Ok(())
-}
-
-// These functions could be refactored to avoid duplication, and probably put into
-// state.rs
-fn get_blacklist(blocks: &HashMap<String, Block>) -> HashSet<String> {
-    blocks
-        .values()
-        .filter_map(|block| {
-            if block.block_state == BlockState::Blocked || block.block_state == BlockState::BlockedWithLock {
-                block.blacklist.clone()
-            } else {
-                None
-            }
-        })
-    .flatten()
-        .collect()
-}
-
-fn get_whitelist(blocks: &HashMap<String, Block>) -> HashSet<String> {
-    blocks
-        .values()
-        .filter_map(|block| {
-            if block.block_state == BlockState::Blocked || block.block_state == BlockState::BlockedWithLock {
-                block.whitelist.clone()
-            } else {
-                None
-            }
-        })
-    .flatten()
-        .collect()
-}
-
-fn is_blacklisted(blacklist: &HashSet<String>, url: &str) -> bool {
-    let url = remove_http_www(url.to_string());
-    blacklist.iter().any(|entry| url.starts_with(entry))
-}
-
-fn is_whitelisted(whitelist: &HashSet<String>, url: &str) -> bool {
-    let url = remove_http_www(url.to_string());
-
-    whitelist.iter().any(|pattern| {
-        let prefix = pattern.trim_end_matches('*');
-        url.starts_with(prefix)
-    })
-}
-
-fn remove_http_www(mut url_string: String) -> String {
-    if url_string.starts_with("https://") {
-        url_string = url_string.strip_prefix("https://").unwrap().to_string();
-    }
-
-    if url_string.starts_with("www.") {
-        url_string = url_string.strip_prefix("www.").unwrap().to_string();
-    }
-
-    url_string
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_json() {
-        let json_str =
-            r#"{"url":"https://www.google.com/search?client=firefox-b-1-d&q=json+parser+rust"}"#;
-
-        let v: Value = serde_json::from_str(json_str).unwrap_or_else(|_| {
-            eprintln!("Failed to parse JSON: {json_str}");
-            Value::Null
-        });
-        assert_eq!(
-            v["url"],
-            "https://www.google.com/search?client=firefox-b-1-d&q=json+parser+rust"
-        );
-
-        // Test with an invalid JSON string
-        let invalid_json_str = r#"{"url": "https://www.example.com""#;
-        let v_invalid: Value = serde_json::from_str(invalid_json_str).unwrap_or_else(|_| {
-            eprintln!("Failed to parse JSON: {invalid_json_str}");
-            Value::Null
-        });
-        assert!(v_invalid.is_null());
-    }
-
-    #[test]
-    fn test_remove_http_www() {
-        let url_with_http = "https://www.example.com".to_string();
-        let url_without_http = remove_http_www(url_with_http);
-        assert_eq!(url_without_http, "example.com".to_string());
-
-        let url_with_https = "https://example.com".to_string();
-        let url_without_https = remove_http_www(url_with_https);
-        assert_eq!(url_without_https, "example.com".to_string());
-
-        let url_with_www = "www.example.com".to_string();
-        let url_without_www = remove_http_www(url_with_www);
-        assert_eq!(url_without_www, "example.com".to_string());
-    }
-}

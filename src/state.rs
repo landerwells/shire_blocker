@@ -161,6 +161,8 @@ pub fn update_block(application_state: &mut ApplicationState, block_name: &str, 
     } else {
         eprintln!("Block '{}' not found in application state", block_name);
     }
+
+    // Send update to the bridge thread?
 }
 
 fn create_event(day: OrderableWeekday, time: NaiveTime, block: String, action: ScheduleAction) -> Event {
