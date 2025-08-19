@@ -44,7 +44,7 @@ fn write_browser_message(message: &str) -> io::Result<()> {
 // Bridge should be the unix listener now, and the daemon will fail to start
 // if the extension is not installed.
 fn connect_to_daemon() -> io::Result<UnixStream> {
-    UnixStream::connect("/tmp/shire_cli.sock")
+    UnixStream::connect("/tmp/shire_bridge.sock")
 }
 
 fn request_state_from_daemon(stream: &mut UnixStream) -> io::Result<ApplicationState> {

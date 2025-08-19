@@ -7,9 +7,7 @@ use serde_json::json;
 use shire_blocker::recv_length_prefixed_message;
 use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fs;
-use std::io;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex, mpsc};
@@ -30,7 +28,7 @@ pub fn start_daemon(config_path: Option<String>) {
     let (state_tx, state_rx) = mpsc::channel();
 
     // TODO: link to where someone can download the browser extension.
-    let bridge_listener = UnixStream::connect(BRIDGE_SOCKET_PATH).expect("Could not connect to browser extension.");
+    let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
     // Bridge thread - waits for state change notifications and sends state to bridge
@@ -43,7 +41,7 @@ pub fn start_daemon(config_path: Option<String>) {
         }
         
         // Wait for state change notifications
-        while let Ok(_) = state_rx.recv() {
+        while state_rx.recv().is_ok() {
             if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
                 eprintln!("Failed to send state update to bridge: {e}");
                 break;
@@ -90,6 +88,20 @@ pub fn start_daemon(config_path: Option<String>) {
     }
 }
 
+fn send_state_to_bridge(stream: &mut UnixStream, app_state: &Arc<Mutex<ApplicationState>>) -> Result<(), Box<dyn std::error::Error>> {
+    let app_state_guard = app_state.lock().unwrap();
+    
+    let state_message = json!({
+        "type": "state_update",
+        "blocks": app_state_guard.blocks
+    });
+    
+    let message_bytes = state_message.to_string().into_bytes();
+    send_length_prefixed_message(stream, &message_bytes)?;
+    
+    Ok(())
+}
+
 fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationState>>, state_tx: mpsc::Sender<()>) {
     // Need to have better error handling here
     let response = recv_length_prefixed_message(stream).unwrap();
@@ -120,6 +132,8 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
             let block_name = v["name"].as_str().unwrap().to_string();
             update_block(&mut app_state_guard, &block_name, BlockState::Blocked);
             
+            // TODO: This should be moved into update_block, and really any function
+            // that gets created that updates the state of the application.
             // Notify bridge thread of state change
             let _ = state_tx.send(());
 
