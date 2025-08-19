@@ -1,9 +1,11 @@
 let port = browser.runtime.connectNative("com.shire_blocker");
+// Validation code to make sure bridge is set up to send and receive messages
+
+console.log("Sending:  ping");
+port.postMessage("ping");
+
 let applicationState = null;
-
-
-console.log(applicationState);
-
+// I don't even think I am getting this message.
 port.onMessage.addListener((message) => {
   console.log(`Received from bridge:`, message);
   
@@ -18,13 +20,13 @@ port.onMessage.addListener((message) => {
 
 console.log(applicationState);
 
-// port.onDisconnect.addListener(() => {
-//   console.log("Bridge connection lost, attempting to reconnect...");
-//   setTimeout(() => {
-//     port = browser.runtime.connectNative("com.shire_blocker");
-//     setupPortListeners();
-//   }, 1000);
-// });
+port.onDisconnect.addListener(() => {
+  console.log("Bridge connection lost, attempting to reconnect...");
+  setTimeout(() => {
+    port = browser.runtime.connectNative("com.shire_blocker");
+    setupPortListeners();
+  }, 1000);
+});
 
 function setupPortListeners() {
   port.onMessage.addListener(handleBridgeMessage);
@@ -46,6 +48,8 @@ function handleBridgeMessage(message) {
 //   }, 1000);
 // }
 
+// Alright, I think I have the message handling set up correctly, now I need
+// to clean up the code for the extension.
 function isUrlBlocked(url) {
   if (!applicationState || !applicationState.active_blocks) {
     return false;

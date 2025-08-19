@@ -92,7 +92,7 @@ fn send_state_to_bridge(stream: &mut UnixStream, app_state: &Arc<Mutex<Applicati
     let state_message = json!({
         "type": "state_update",
         "state": {
-            "active_blocks": app_state_guard.blocks
+            "blocks": app_state_guard.blocks
         }
     });
     
