@@ -2,6 +2,7 @@ use crate::config::Config;
 use chrono::NaiveTime;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use chrono::Weekday;
@@ -155,14 +156,14 @@ fn parse_day(day_str: &str) -> Result<Weekday, String> {
         .ok_or_else(|| format!("Invalid day: {day_str}"))
 }
 
-pub fn update_block(application_state: &mut ApplicationState, block_name: &str, new_state: BlockState) {
+pub fn update_block(application_state: &mut ApplicationState, block_name: &str, new_state: BlockState, state_tx: mpsc::Sender<()>) {
     if let Some(block) = application_state.blocks.get_mut(block_name) {
         block.block_state = new_state;
     } else {
         eprintln!("Block '{}' not found in application state", block_name);
     }
 
-    // Send update to the bridge thread?
+    let _ = state_tx.send(());
 }
 
 fn create_event(day: OrderableWeekday, time: NaiveTime, block: String, action: ScheduleAction) -> Event {

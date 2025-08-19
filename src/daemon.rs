@@ -29,11 +29,11 @@ pub fn start_daemon(config_path: Option<String>) {
 
     // TODO: link to where someone can download the browser extension.
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
+    let (mut bridge_stream, _addr) = bridge_listener.accept().unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
     // Bridge thread - waits for state change notifications and sends state to bridge
     let bridge_app_state = Arc::clone(&app_state);
-    let mut bridge_stream = bridge_listener;
     thread::spawn(move || {
         // Send initial state
         if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
@@ -49,8 +49,6 @@ pub fn start_daemon(config_path: Option<String>) {
         }
     });
 
-    // println!("{:?}", app_state.lock().unwrap().schedule);
-    // How to structure this thread in order to not have empty waiting?
     let schedule_app_state = Arc::clone(&app_state);
     thread::spawn(move || {
         // Get current day and time
@@ -93,7 +91,9 @@ fn send_state_to_bridge(stream: &mut UnixStream, app_state: &Arc<Mutex<Applicati
     
     let state_message = json!({
         "type": "state_update",
-        "blocks": app_state_guard.blocks
+        "state": {
+            "active_blocks": app_state_guard.blocks
+        }
     });
     
     let message_bytes = state_message.to_string().into_bytes();
@@ -130,12 +130,7 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         // I could even make a function purely for changing the state of the blocks
         Some("start_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Blocked);
-            
-            // TODO: This should be moved into update_block, and really any function
-            // that gets created that updates the state of the application.
-            // Notify bridge thread of state change
-            let _ = state_tx.send(());
+            update_block(&mut app_state_guard, &block_name, BlockState::Blocked, state_tx);
 
             let message = serde_json::json!({ "status": "started", "block": block_name })
                 .to_string()
@@ -144,10 +139,7 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
         }
         Some("stop_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Unblocked);
-            
-            // Notify bridge thread of state change
-            let _ = state_tx.send(());
+            update_block(&mut app_state_guard, &block_name, BlockState::Unblocked, state_tx);
 
             let message = serde_json::json!({ "status": "stopped", "block": block_name })
                 .to_string()
