@@ -2,13 +2,11 @@ use serde_json::{json, Value};
 use shire_blocker::{recv_length_prefixed_message, send_length_prefixed_message};
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 // At some point I should make a bridge error log and then have everything write
 // to that if there are problems
-
 fn connect_to_daemon() -> io::Result<UnixStream> {
     UnixStream::connect("/tmp/shire_bridge.sock")
 }
@@ -32,7 +30,6 @@ fn write_browser_message(message: &str) -> io::Result<()> {
     io::stdout().flush()?;
     Ok(())
 }
-
 
 // Have to be extremely careful in this file, cannot randomly println anywhere
 // must switch to printing to a log
@@ -68,8 +65,6 @@ fn main() -> io::Result<()> {
                         });
                     }
                 }
-                
-
             }
             Err(_) => {
                 // eprintln!("Failed to connect to daemon: {e}");
@@ -84,38 +79,4 @@ fn main() -> io::Result<()> {
         }
     }
 }
-
-
-// fn message_loop(stream: &mut UnixStream) -> std::io::Result<()> {
-//     loop {
-//         // Receive message from daemon
-//         match recv_length_prefixed_message(stream) {
-//             Ok(message_bytes) => {
-//                 // Parse the JSON message
-//                 let message_str = String::from_utf8_lossy(&message_bytes);
-//                 match serde_json::from_str::<Value>(&message_str) {
-//                     Ok(json_message) => {
-//                         // Probably turn this into a match at some point to support
-//                         // not only "state_update" messages
-//                         if let Some(msg_type) = json_message.get("type") {
-//                             if msg_type == "state_update" {
-//                                 // Forward the entire message to the browser extension
-//                                 if let Err(e) = write_browser_message(&message_str) {
-//                                     eprintln!("Failed to forward message to browser: {e}");
-//                                 }
-//                             }
-//                         }
-//                     }
-//                     Err(e) => {
-//                         eprintln!("Failed to parse JSON message from daemon: {e}");
-//                     }
-//                 }
-//             }
-//             Err(e) => {
-//                 eprintln!("Failed to receive message from daemon: {e}");
-//                 return Err(e);
-//             }
-//         }
-//     }
-// }
 

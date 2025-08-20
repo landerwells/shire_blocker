@@ -1,6 +1,7 @@
 # Shire Blocker Development Log
 
 ## Next Priority Tasks
+- Working on persisting the bridge, but running into errors where the state does not get sent from the daemon upon updates.
 - Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
 - Need better error handling and propagation, especially when starting the daemon
 - Maybe locking persistence first
