@@ -9,8 +9,8 @@ use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::net::UnixListener;
-use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex, mpsc};
+use std::os::unix::net::UnixStream;
 use std::thread;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
@@ -29,20 +29,27 @@ pub fn start_daemon(config_path: Option<String>) {
 
     // TODO: link to where someone can download the browser extension.
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
-    let (mut bridge_stream, _addr) = bridge_listener.accept().unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    // Bridge thread - waits for state change notifications and sends state to bridge
-    let bridge_app_state = Arc::clone(&app_state);
-    thread::spawn(move || {
+    // Bridge thread - Sender
+    // thread::spawn(move || {
         // Send initial state
-        if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
-            eprintln!("Failed to send initial state to bridge: {e}");
-        }
-        
+        // if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
+        //     eprintln!("Failed to send initial state to bridge: {e}");
+        // }
+
         // Wait for state change notifications
-        while state_rx.recv().is_ok() {
-            if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
+    // });
+
+    // This thread simply runs once on startup and then exits
+    let bridge_app_state = Arc::clone(&app_state);
+    // let bridge_state_tx = state_tx.clone();
+    thread::spawn(move || {
+        let (mut stream, _addr) = bridge_listener.accept().unwrap();
+        // let _ = bridge_state_tx.send();
+
+        while let Ok(_) = state_rx.recv() {
+            if let Err(e) = send_state_to_bridge(&mut stream, &bridge_app_state) {
                 eprintln!("Failed to send state update to bridge: {e}");
                 break;
             }
@@ -51,11 +58,8 @@ pub fn start_daemon(config_path: Option<String>) {
 
     let schedule_app_state = Arc::clone(&app_state);
     thread::spawn(move || {
-        // Get current day and time
         let current_day: OrderableWeekday = state::OrderableWeekday(chrono::Local::now().weekday());
         let current_time = chrono::Local::now().time();
-
-        // println!("Current day: {:?}, current time {:?}", current_day, current_time);
 
         // Iterate through schedule until the next element
         // Find the next event (greater than now)
@@ -66,7 +70,6 @@ pub fn start_daemon(config_path: Option<String>) {
                 break;
             }
         }
-
         // loop {
         // }
     });
@@ -86,25 +89,32 @@ pub fn start_daemon(config_path: Option<String>) {
     }
 }
 
-fn send_state_to_bridge(stream: &mut UnixStream, app_state: &Arc<Mutex<ApplicationState>>) -> Result<(), Box<dyn std::error::Error>> {
+fn send_state_to_bridge(
+    stream: &mut UnixStream,
+    app_state: &Arc<Mutex<ApplicationState>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let app_state_guard = app_state.lock().unwrap();
-    
+
     let state_message = json!({
         "type": "state_update",
         "state": {
             "blocks": app_state_guard.blocks
         }
     });
-    
+
     let message_bytes = state_message.to_string().into_bytes();
     send_length_prefixed_message(stream, &message_bytes)?;
-    
+
     Ok(())
 }
 
-fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationState>>, state_tx: mpsc::Sender<()>) {
+fn handle_cli_request(
+    cli_stream: &mut UnixStream,
+    app_state: Arc<Mutex<ApplicationState>>,
+    state_tx: mpsc::Sender<()>,
+) {
     // Need to have better error handling here
-    let response = recv_length_prefixed_message(stream).unwrap();
+    let response = recv_length_prefixed_message(cli_stream).unwrap();
     let response_str = String::from_utf8_lossy(&response);
 
     let v: Value = serde_json::from_str(response_str.trim()).unwrap_or_else(|_| {
@@ -125,28 +135,37 @@ fn handle_cli_request(stream: &mut UnixStream, app_state: Arc<Mutex<ApplicationS
             let message = serde_json::json!({ "blocks": string_map })
                 .to_string()
                 .into_bytes();
-            send_length_prefixed_message(stream, &message).unwrap();
+            send_length_prefixed_message(cli_stream, &message).unwrap();
         }
         // I could even make a function purely for changing the state of the blocks
         Some("start_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Blocked, state_tx);
+            update_block(
+                &mut app_state_guard,
+                &block_name,
+                BlockState::Blocked,
+                state_tx,
+            );
 
             let message = serde_json::json!({ "status": "started", "block": block_name })
                 .to_string()
                 .into_bytes();
-            send_length_prefixed_message(stream, &message).unwrap();
+            send_length_prefixed_message(cli_stream, &message).unwrap();
         }
         Some("stop_block") => {
             let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Unblocked, state_tx);
+            update_block(
+                &mut app_state_guard,
+                &block_name,
+                BlockState::Unblocked,
+                state_tx,
+            );
 
             let message = serde_json::json!({ "status": "stopped", "block": block_name })
                 .to_string()
                 .into_bytes();
-            send_length_prefixed_message(stream, &message).unwrap();
+            send_length_prefixed_message(cli_stream, &message).unwrap();
         }
         _ => eprintln!("Unknown action in CLI request."),
     }
 }
-

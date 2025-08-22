@@ -1,11 +1,12 @@
 use crate::config::Config;
 use chrono::NaiveTime;
+use chrono::Weekday;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::mpsc;
+use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 use std::sync::Mutex;
-use chrono::Weekday;
+use std::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderableWeekday(pub Weekday);
@@ -18,7 +19,9 @@ impl From<Weekday> for OrderableWeekday {
 
 impl Ord for OrderableWeekday {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.num_days_from_monday().cmp(&other.0.num_days_from_monday())
+        self.0
+            .num_days_from_monday()
+            .cmp(&other.0.num_days_from_monday())
     }
 }
 
@@ -156,17 +159,28 @@ fn parse_day(day_str: &str) -> Result<Weekday, String> {
         .ok_or_else(|| format!("Invalid day: {day_str}"))
 }
 
-pub fn update_block(application_state: &mut ApplicationState, block_name: &str, new_state: BlockState, state_tx: mpsc::Sender<()>) {
+pub fn update_block(
+    application_state: &mut ApplicationState,
+    block_name: &str,
+    new_state: BlockState,
+    state_tx: mpsc::Sender<()>,
+) {
     if let Some(block) = application_state.blocks.get_mut(block_name) {
         block.block_state = new_state;
     } else {
         eprintln!("Block '{}' not found in application state", block_name);
     }
 
+    // let stream = stream.try_clone().expect("Failed to clone UnixStream");
     let _ = state_tx.send(());
 }
 
-fn create_event(day: OrderableWeekday, time: NaiveTime, block: String, action: ScheduleAction) -> Event {
+fn create_event(
+    day: OrderableWeekday,
+    time: NaiveTime,
+    block: String,
+    action: ScheduleAction,
+) -> Event {
     Event {
         block,
         day,

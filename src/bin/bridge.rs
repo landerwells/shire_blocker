@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use shire_blocker::{recv_length_prefixed_message, send_length_prefixed_message};
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
@@ -33,50 +33,94 @@ fn write_browser_message(message: &str) -> io::Result<()> {
 
 // Have to be extremely careful in this file, cannot randomly println anywhere
 // must switch to printing to a log
-fn main() -> io::Result<()> {
-    let message = read_browser_message();
+// fn main() -> io::Result<()> {
+//     let message = read_browser_message();
+//
+//     loop {
+//         match connect_to_daemon() {
+//             Ok(mut stream) => {
+//                 // Could be a good idea to send a message to the js confirming the connection
+//                 let request = json!({
+//                     "action": "get_state"
+//                 });
+//
+//                 send_length_prefixed_message(&mut stream, request.to_string().as_bytes())?;
+//
+//                 // get the state from the daemon,
+//                 loop {
+//                     match recv_length_prefixed_message(&mut stream) {
+//                         Ok(response) => {
+//                             let response_str = String::from_utf8_lossy(&response);
+//                             let v: String = serde_json::from_str(&response_str).unwrap_or_else(|_| {
+//                                 // eprintln!("Invalid JSON response from daemon");
+//                                 json!({})
+//                             }).to_string();
+//
+//                             write_browser_message(&v)?;
+//                         }
+//                         Err(e) => {
+//                             let response = json!({
+//                                 "type": "error",
+//                                 "message": "Failed to get state from daemon"
+//                             }).to_string();
+//
+//                             write_browser_message(&response)?;
+//                             break;
+//                         }
+//                     }
+//                 }
+//             }
+//             Err(_) => {
+//                 // eprintln!("Failed to connect to daemon: {e}");
+//                 let response = json!({
+//                     "type": "error",
+//                     "message": "Failed to connect to daemon. Retrying..."
+//                 });
+//
+//                 write_browser_message(&response.to_string())?;
+//                 thread::sleep(Duration::from_secs(1)); // Retry after a delay
+//             }
+//         }
+//     }
+// }
+
+// use std::net::Stream;
+// use std::thread;
+// use std::time::Duration;
+
+fn main() {
+    let addr = "/tmp/shire_bridge.sock"; // your daemon socket path
+    let mut connected: Option<bool> = None; // None = unknown state
 
     loop {
-        match connect_to_daemon() {
-            Ok(mut stream) => {
-                // Could be a good idea to send a message to the js confirming the connection
-                let request = json!({
-                    "action": "get_state"
-                });
+        match UnixStream::connect(addr) {
+            Ok(stream) => {
+                if connected != Some(true) {
+                    println!("Connected to daemon at {}", addr);
+                    connected = Some(true);
+                }
 
-                send_length_prefixed_message(&mut stream, request.to_string().as_bytes())?;
+                // Hold the connection for a short time and then check if it's still valid
+                thread::sleep(Duration::from_secs(2));
 
-                // get the state from the daemon,
-                match recv_length_prefixed_message(&mut stream) {
-                    Ok(response) => {
-                        let response_str = String::from_utf8_lossy(&response);
-                        let v: Value = serde_json::from_str(&response_str).unwrap_or_else(|_| {
-                            eprintln!("Invalid JSON response from daemon");
-                            json!({})
-                        });
-
-                        write_browser_message(&response_str)?;
-
-                    }
-                    Err(e) => {
-                        let response = json!({
-                            "type": "error",
-                            "message": "Failed to get state from daemon"
-                        });
+                // Check if the socket is still open by calling peer_addr()
+                if stream.peer_addr().is_err() {
+                    if connected != Some(false) {
+                        println!("Disconnected from daemon");
+                        connected = Some(false);
                     }
                 }
+
+                // Drop stream so next loop can reconnect if needed
+                drop(stream);
             }
             Err(_) => {
-                // eprintln!("Failed to connect to daemon: {e}");
-                let response = json!({
-                    "type": "error",
-                    "message": "Failed to connect to daemon. Retrying..."
-                });
-
-                write_browser_message(&response.to_string())?;
-                thread::sleep(Duration::from_secs(1)); // Retry after a delay
+                if connected != Some(false) {
+                    println!("Disconnected from daemon");
+                    connected = Some(false);
+                }
+                thread::sleep(Duration::from_secs(1));
             }
         }
     }
 }
-

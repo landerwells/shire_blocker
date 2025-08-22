@@ -97,7 +97,7 @@ fn main() {
         Commands::Block { action } => match action {
             BlockAction::List => {
                 let mut stream = UnixStream::connect(SOCKET_PATH)
-                    .expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
+                    .expect("Failed to connect to the shire daemon at {SOCKET_PATH}: {e}");
                 list_blocks(&mut stream).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {

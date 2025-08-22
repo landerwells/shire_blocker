@@ -1,7 +1,11 @@
 # Shire Blocker Development Log
 
+I have decided that I want to keep the state entirely in the daemon, and set up
+bi-directional communication between the daemon and the browser extension. This
+will mean reverting some of the changes I have been making, but it will remove
+the needless complexity of having the state in multiple places.
+
 ## Next Priority Tasks
-- Working on persisting the bridge, but running into errors where the state does not get sent from the daemon upon updates.
 - Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
 - Need better error handling and propagation, especially when starting the daemon
 - Maybe locking persistence first
@@ -14,6 +18,10 @@
 ---
 
 ## Daily Work Log
+
+### August 20, 2025
+**Accomplished:**
+- Implemented persisting the bridge, but need to polish and test more before merging
 
 ### August 17, 2025
 **Accomplished:**
