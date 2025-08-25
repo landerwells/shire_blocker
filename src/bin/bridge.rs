@@ -4,12 +4,8 @@ use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::Duration;
-
-// At some point I should make a bridge error log and then have everything write
-// to that if there are problems
-fn connect_to_daemon() -> io::Result<UnixStream> {
-    UnixStream::connect("/tmp/shire_bridge.sock")
-}
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}, mpsc};
+use std::sync::mpsc::channel;
 
 fn read_browser_message() -> io::Result<Vec<u8>> {
     let mut length_buf = [0u8; 4];
@@ -31,84 +27,58 @@ fn write_browser_message(message: &str) -> io::Result<()> {
     Ok(())
 }
 
-// Have to be extremely careful in this file, cannot randomly println anywhere
-// must switch to printing to a log
-// fn main() -> io::Result<()> {
-//     let message = read_browser_message();
-//
-//     loop {
-//         match connect_to_daemon() {
-//             Ok(mut stream) => {
-//                 // Could be a good idea to send a message to the js confirming the connection
-//                 let request = json!({
-//                     "action": "get_state"
-//                 });
-//
-//                 send_length_prefixed_message(&mut stream, request.to_string().as_bytes())?;
-//
-//                 // get the state from the daemon,
-//                 loop {
-//                     match recv_length_prefixed_message(&mut stream) {
-//                         Ok(response) => {
-//                             let response_str = String::from_utf8_lossy(&response);
-//                             let v: String = serde_json::from_str(&response_str).unwrap_or_else(|_| {
-//                                 // eprintln!("Invalid JSON response from daemon");
-//                                 json!({})
-//                             }).to_string();
-//
-//                             write_browser_message(&v)?;
-//                         }
-//                         Err(e) => {
-//                             let response = json!({
-//                                 "type": "error",
-//                                 "message": "Failed to get state from daemon"
-//                             }).to_string();
-//
-//                             write_browser_message(&response)?;
-//                             break;
-//                         }
-//                     }
-//                 }
-//             }
-//             Err(_) => {
-//                 // eprintln!("Failed to connect to daemon: {e}");
-//                 let response = json!({
-//                     "type": "error",
-//                     "message": "Failed to connect to daemon. Retrying..."
-//                 });
-//
-//                 write_browser_message(&response.to_string())?;
-//                 thread::sleep(Duration::from_secs(1)); // Retry after a delay
-//             }
-//         }
-//     }
-// }
+enum Status {
+    Disconnected,
+    Connected,
+}
 
-// use std::net::Stream;
-// use std::thread;
-// use std::time::Duration;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "/tmp/shire_bridge.sock";
+    let mut connected: Option<bool> = None; 
 
-fn main() {
-    let addr = "/tmp/shire_bridge.sock"; // your daemon socket path
-    let mut connected: Option<bool> = None; // None = unknown state
+    // Shared flag to signal threads to exit
+    // let running = Arc::new(AtomicBool::new(true));
+
+    // --- Reading thread ---
+    // let running_clone = Arc::clone(&running);
+    let read_handle = thread::spawn(move || {
+        while let Ok(read_stream) = rx.recv() {
+            // while running_clone.load(Ordering::SeqCst) {
+            // What happens when I close the connection while waiting right here?
+            match recv_length_prefixed_message(&mut read_stream.try_clone().unwrap()) {
+                Ok(msg) => {
+                    write_browser_message(&String::from_utf8(msg).unwrap()).unwrap_or(());
+                }
+                Err(_) => ()
+            }
+        }
+        });
+
+    // --- Writing thread ---
+    // let write_stream = stream.try_clone()?;
+    let running_clone = Arc::clone(&running);
+    let write_handle = thread::spawn(move || {
+        while running_clone.load(Ordering::SeqCst) {
+            let msg = read_browser_message().unwrap();
+            let _ = send_length_prefixed_message(&mut write_stream.try_clone().unwrap(), &msg);
+        }
+    });
 
     loop {
         match UnixStream::connect(addr) {
             Ok(stream) => {
                 if connected != Some(true) {
-                    println!("Connected to daemon at {}", addr);
                     connected = Some(true);
+                    send_update_to_browser(Status::Connected)?;
                 }
 
                 // Hold the connection for a short time and then check if it's still valid
                 thread::sleep(Duration::from_secs(2));
 
                 // Check if the socket is still open by calling peer_addr()
-                if stream.peer_addr().is_err() {
-                    if connected != Some(false) {
-                        println!("Disconnected from daemon");
-                        connected = Some(false);
-                    }
+                if stream.peer_addr().is_err() && connected != Some(false) {
+                    connected = Some(false);
+                    send_update_to_browser(Status::Disconnected)?;
                 }
 
                 // Drop stream so next loop can reconnect if needed
@@ -116,11 +86,23 @@ fn main() {
             }
             Err(_) => {
                 if connected != Some(false) {
-                    println!("Disconnected from daemon");
                     connected = Some(false);
+                    send_update_to_browser(Status::Disconnected)?;
                 }
                 thread::sleep(Duration::from_secs(1));
             }
         }
     }
-}
+    }
+
+    fn send_update_to_browser(status: Status) -> io::Result<()> {
+        let status_str = match status {
+            Status::Connected => "connected",
+            Status::Disconnected => "disconnected",
+        };
+
+        let message = json!({ "type": status_str }).to_string();
+        write_browser_message(&message)?;
+        Ok(())
+    }
+
