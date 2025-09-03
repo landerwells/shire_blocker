@@ -1,3 +1,4 @@
+use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 
@@ -16,4 +17,14 @@ pub fn recv_length_prefixed_message(stream: &mut UnixStream) -> io::Result<Vec<u
     let mut buf = vec![0u8; len];
     stream.read_exact(&mut buf)?;
     Ok(buf)
+}
+
+pub fn log_to_file(path: &str, msg: &str) {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+
+    writeln!(file, "{}", msg).unwrap();
 }

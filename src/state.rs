@@ -3,10 +3,10 @@ use chrono::NaiveTime;
 use chrono::Weekday;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::os::unix::net::UnixStream;
+// use std::os::unix::net::UnixStream;
+use crate::daemon::send_state_to_bridge;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderableWeekday(pub Weekday);
@@ -163,7 +163,7 @@ pub fn update_block(
     application_state: &mut ApplicationState,
     block_name: &str,
     new_state: BlockState,
-    state_tx: mpsc::Sender<()>,
+    // stream: &mut UnixStream
 ) {
     if let Some(block) = application_state.blocks.get_mut(block_name) {
         block.block_state = new_state;
@@ -171,8 +171,8 @@ pub fn update_block(
         eprintln!("Block '{}' not found in application state", block_name);
     }
 
-    // let stream = stream.try_clone().expect("Failed to clone UnixStream");
-    let _ = state_tx.send(());
+    // TODO: Call a function to send a message to the bridge with the updated state.
+    // send_state_to_bridge(stream, application_state);
 }
 
 fn create_event(
