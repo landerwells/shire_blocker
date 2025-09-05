@@ -26,25 +26,25 @@ pub fn start_daemon(config_path: Option<String>) {
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
 
-    // The question is, should I try sending messages on this listener, or wait 
-    // and send the messages over the stream
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
     let bridge_stream: Arc<Mutex<Option<UnixStream>>> = Arc::new(Mutex::new(None));
     let bridge_app_state = Arc::clone(&app_state);
+    let bridge_stream_for_thread = Arc::clone(&bridge_stream);
 
     thread::spawn(move || {
         for stream in bridge_listener.incoming() {
             // So here I get a stream, and I should send it the initial state, 
             // and then send the stream to the 
             match stream {
-                Ok(mut stream) => {
-                    // TODO: Connect a single stream and wrap in an Arc Mutex
-                    send_state_to_bridge(&mut stream, &bridge_app_state.lock().unwrap());
+                Ok(stream) => {
+                    // Send initial state to the bridge
+                    let mut stream_copy = stream.try_clone().expect("Failed to clone stream");
+                    send_state_to_bridge(&mut stream_copy, &bridge_app_state.lock().unwrap());
                     
-
-                    // TODO: Update the bridge stream to hold this new one
+                    // Store the stream in the Arc<Mutex<Option<UnixStream>>>
+                    *bridge_stream_for_thread.lock().unwrap() = Some(stream);
                 }
                 Err(e) => eprintln!("Bridge connection failed: {e}"),
             }
@@ -75,10 +75,10 @@ pub fn start_daemon(config_path: Option<String>) {
         match stream {
             Ok(mut stream) => {
                 let cli_app_state = Arc::clone(&app_state);
-                // let bridge_stream_clone = Arc::clone(&bridge_cli_stream);
+                let bridge_stream_clone = Arc::clone(&bridge_stream);
 
                 thread::spawn(move || {
-                    handle_cli_request(&mut stream, cli_app_state);
+                    handle_cli_request(&mut stream, cli_app_state, bridge_stream_clone);
                 });
             }
             Err(e) => eprintln!("CLI connection failed: {e}"),
@@ -89,7 +89,7 @@ pub fn start_daemon(config_path: Option<String>) {
 fn handle_cli_request(
     cli_stream: &mut UnixStream,
     app_state: Arc<Mutex<ApplicationState>>,
-    bridge_stream: Arc<Mutex<Option<UnixStream>>>
+    bridge_stream: Arc<Mutex<Option<UnixStream>>>,
 ) {
     // Read request
     let response = match recv_length_prefixed_message(cli_stream) {
@@ -131,11 +131,14 @@ fn handle_cli_request(
             if let Some(block_name) = v["name"].as_str() {
                 update_block(&mut app_state_guard, block_name, BlockState::Blocked);
 
-                // TODO; Unlock bridge stream here and send the message
                 // Send new state to bridge
-                // if let Err(e) = send_state_to_bridge(&bridge_stream, &app_state_guard) {
-                //     eprintln!("Failed to send state to bridge: {e}");
-                // }
+                if let Ok(mut bridge_guard) = bridge_stream.lock() {
+                    if let Some(ref mut stream) = *bridge_guard {
+                        if let Err(e) = send_state_to_bridge(stream, &app_state_guard) {
+                            eprintln!("Failed to send state to bridge: {e}");
+                        }
+                    }
+                }
 
                 let message = serde_json::json!({ "status": "started", "block": block_name })
                     .to_string()
@@ -151,12 +154,14 @@ fn handle_cli_request(
             if let Some(block_name) = v["name"].as_str() {
                 update_block(&mut app_state_guard, block_name, BlockState::Unblocked);
 
-                // TODO; Unlock bridge stream here and send the message
                 // Send new state to bridge
-                // Send new state to bridge
-                // if let Err(e) = send_state_to_bridge(&bridge_stream, &app_state_guard) {
-                //     eprintln!("Failed to send state to bridge: {e}");
-                // }
+                if let Ok(mut bridge_guard) = bridge_stream.lock() {
+                    if let Some(ref mut stream) = *bridge_guard {
+                        if let Err(e) = send_state_to_bridge(stream, &app_state_guard) {
+                            eprintln!("Failed to send state to bridge: {e}");
+                        }
+                    }
+                }
 
                 let message = serde_json::json!({ "status": "stopped", "block": block_name })
                     .to_string()

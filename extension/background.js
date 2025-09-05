@@ -44,25 +44,24 @@ function handleBridgeMessage(message) {
     console.log("Received from bridge:", message);
 
     if (message.type === "state_update") {
-      if (message.state && message.state.blocks) {
-        blocks = new Map(Object.entries(message.state.blocks));
+      blocks = new Map(Object.entries(message.blocks));
+      console.log(blocks)
 
-        // Clear existing lists to prevent stale entries
-        blacklist.clear();
-        whitelist.clear();
+      // Clear existing lists to prevent stale entries
+      blacklist.clear();
+      whitelist.clear();
 
-        for (const [blockName, block] of blocks) {
-          if (block.block_state === "Unblocked") continue;
+      for (const [blockName, block] of blocks) {
+        if (block.block_state === "Unblocked") continue;
 
-          block.blacklist?.forEach(pattern => blacklist.add(pattern));
-          block.whitelist?.forEach(pattern => whitelist.add(pattern));
-        }
-
-        console.log("Updated blacklist:", blacklist);
-        console.log("Updated whitelist:", whitelist);
-
-        checkAllTabsAgainstState();
+        block.blacklist?.forEach(pattern => blacklist.add(pattern));
+        block.whitelist?.forEach(pattern => whitelist.add(pattern));
       }
+
+      console.log("Updated blacklist:", blacklist);
+      console.log("Updated whitelist:", whitelist);
+
+      checkAllTabsAgainstState();
     } else if (message.status === "connected") {
       console.log("Bridge reports: connected to daemon");
       // Not exactly sure what I wanted to do with this one but its good for 
@@ -120,34 +119,34 @@ function isUrlBlocked(url) {
   //   console.error(`Error checking if URL is blocked: ${url}`, error);
   //   return false;
   // }
-  
+
   return isBlacklisted(url) && !isWhitelisted(url);
 }
 
 // Example removeHttpWww function
 function removeHttpWww(url) {
-    return url.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  return url.replace(/^https?:\/\//, '').replace(/^www\./, '');
 }
 
 function isBlacklisted(url) {
-    const cleanUrl = removeHttpWww(url);
-    for (const entry of blacklist) {
-        if (cleanUrl.startsWith(entry)) {
-            return true;
-        }
+  const cleanUrl = removeHttpWww(url);
+  for (const entry of blacklist) {
+    if (cleanUrl.startsWith(entry)) {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 function isWhitelisted(url) {
-    const cleanUrl = removeHttpWww(url);
-    for (const pattern of whitelist) {
-        const prefix = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
-        if (cleanUrl.startsWith(prefix)) {
-            return true;
-        }
+  const cleanUrl = removeHttpWww(url);
+  for (const pattern of whitelist) {
+    const prefix = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
+    if (cleanUrl.startsWith(prefix)) {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 /**
@@ -161,7 +160,7 @@ function urlMatches(url, pattern) {
     if (!url || !pattern) {
       return false;
     }
-    
+
     return url.startsWith(pattern);
   } catch (error) {
     console.error(`Error matching URL ${url} against pattern ${pattern}:`, error);
