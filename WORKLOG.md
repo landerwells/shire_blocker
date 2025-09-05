@@ -16,6 +16,7 @@
 ### September 4, 2025
 **Accomplished:**
 - After many days, merged persistent-bridge back into master, completing all basic functionality
+- Added support for automatically refreshing tabs after stopping a block
 
 ### August 20, 2025
 **Accomplished:**
