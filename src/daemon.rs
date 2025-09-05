@@ -1,9 +1,8 @@
 use crate::config;
-use crate::state;
 use crate::state::*;
-use chrono::Datelike;
+// use chrono::Datelike;
 use serde_json::Value;
-use serde_json::json;
+// use serde_json::json;
 use shire_blocker::recv_length_prefixed_message;
 use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
@@ -41,7 +40,8 @@ pub fn start_daemon(config_path: Option<String>) {
                 Ok(stream) => {
                     // Send initial state to the bridge
                     let mut stream_copy = stream.try_clone().expect("Failed to clone stream");
-                    send_state_to_bridge(&mut stream_copy, &bridge_app_state.lock().unwrap());
+                    // TODO: properly error handle this?
+                    let _ = send_state_to_bridge(&mut stream_copy, &bridge_app_state.lock().unwrap());
                     
                     // Store the stream in the Arc<Mutex<Option<UnixStream>>>
                     *bridge_stream_for_thread.lock().unwrap() = Some(stream);
@@ -183,10 +183,10 @@ pub fn send_state_to_bridge(
     app_state: &ApplicationState,
 ) -> io::Result<()> {
     // Serialize the state
-    let string_map: HashMap<String, BlockState> = app_state
+    let string_map: HashMap<String, &Block> = app_state
         .blocks
         .iter()
-        .map(|(name, block)| (name.clone(), block.block_state))
+        .map(|(name, block)| (name.clone(), block))
         .collect();
 
     let message = serde_json::json!({

@@ -1,6 +1,5 @@
-use serde_json::{Value, json};
 use shire_blocker::{recv_length_prefixed_message, send_length_prefixed_message};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::Duration;
@@ -35,7 +34,7 @@ fn main() -> io::Result<()> {
         match UnixStream::connect(addr) {
             Ok(mut stream) => {
                 if !connected {
-                    connected = true;
+                    // connected = true;
                     write_browser_message(r#"{"status":"connected"}"#)?;
                     
                     // ask daemon for state
