@@ -2,8 +2,7 @@ use crate::config;
 use crate::state::*;
 // use chrono::Datelike;
 use serde_json::Value;
-use shire_blocker::recv_length_prefixed_message;
-use shire_blocker::send_length_prefixed_message;
+use shire_blocker::*;
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::net::UnixListener;
@@ -12,9 +11,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::io;
 
-// TODO: Move these to bridge
-const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
-const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
 pub fn start_daemon(config_path: Option<String>) {
     let config = config::parse_config(config_path).unwrap();

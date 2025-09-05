@@ -8,6 +8,7 @@ use commands::list_blocks;
 use serde_json::json;
 use std::collections::HashMap;
 use std::os::unix::net::UnixStream;
+use shire_blocker::CLI_SOCKET_PATH;
 
 use crate::commands::*;
 use crate::daemon::start_daemon;
@@ -88,21 +89,19 @@ enum ServiceAction {
     Uninstall,
 }
 
-const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
-
 fn main() {
     let args = Args::parse();
 
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
-                let mut stream = UnixStream::connect(SOCKET_PATH)
-                    .expect("Failed to connect to the shire daemon at {SOCKET_PATH}: {e}");
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire daemon at {CLI_SOCKET_PATH}: {e}");
                 list_blocks(&mut stream).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                let mut stream = UnixStream::connect(SOCKET_PATH)
-                    .expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
 
                 let mut params = HashMap::new();
                 params.insert("name", json!(name));
@@ -112,16 +111,16 @@ fn main() {
                 send_action_with_params(&mut stream, "start_block", Some(params)).unwrap();
             }
             BlockAction::Stop { name } => {
-                let mut stream = UnixStream::connect(SOCKET_PATH)
-                    .expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
 
                 let mut params = HashMap::new();
                 params.insert("name", json!(name));
                 send_action_with_params(&mut stream, "stop_block", Some(params)).unwrap();
             }
             BlockAction::Lock { name, lock } => {
-                let mut stream = UnixStream::connect(SOCKET_PATH)
-                    .expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
 
                 let mut params = HashMap::new();
                 params.insert("name", json!(name));

@@ -1,8 +1,8 @@
-use shire_blocker::{recv_length_prefixed_message, send_length_prefixed_message};
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::Duration;
+use shire_blocker::*;
 
 // fn read_browser_message() -> io::Result<Vec<u8>> {
 //     let mut length_buf = [0u8; 4];
@@ -26,12 +26,11 @@ fn write_browser_message(message: &str) -> io::Result<()> {
 
 
 fn main() -> io::Result<()> {
-    let addr = "/tmp/shire_bridge.sock";
     let mut connected = false;
     write_browser_message(r#"{"status":"connected"}"#)?;
 
     loop {
-        match UnixStream::connect(addr) {
+        match UnixStream::connect(BRIDGE_SOCKET_PATH) {
             Ok(mut stream) => {
                 if !connected {
                     // connected = true;

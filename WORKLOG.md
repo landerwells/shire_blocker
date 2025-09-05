@@ -1,9 +1,13 @@
 # Shire Blocker Development Log
 
+## Smaller optional fixes, wouldn't mind if someone contributed these
+- Unit tests
+- Fixing the tab loading times after getting a state update from the daemon
+- Incremental state updates from the daemon instead of sending the entire state, send messages that add or remove things from the blacklist/whitelist
+
 ## Next Priority Tasks
-- Need better error handling and propagation, especially when starting the daemon
-- Maybe locking persistence first
-- Write unit and integration tests for almost every use case for more efficient workflow
+- Persistence of locks via Rusqlite database integration
+- Scheduling of blocks
 
 ## Future Features
 - Landing page improvements: display which block is preventing the current website, or multiple blocks, and if the block is due to a schedule. Possibly dark/light theme
@@ -12,6 +16,10 @@
 ---
 
 ## Daily Work Log
+
+### September 5, 2025
+**Accomplished:**
+- Moved socket addresses into lib.rs for re-use in different files
 
 ### September 4, 2025
 **Accomplished:**
