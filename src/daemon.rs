@@ -11,10 +11,10 @@ use std::fs;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc;
 use std::thread;
+use std::io;
 
-// Should probably move these to lib
+// TODO: Move these to bridge
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
@@ -26,40 +26,25 @@ pub fn start_daemon(config_path: Option<String>) {
     let _ = fs::remove_file(BRIDGE_SOCKET_PATH);
     let _ = fs::remove_file(CLI_SOCKET_PATH);
 
+    // The question is, should I try sending messages on this listener, or wait 
+    // and send the messages over the stream
     let bridge_listener = UnixListener::bind(BRIDGE_SOCKET_PATH).unwrap();
-    // Use this stream to send messages to the daemon
-    let bridge_stream = UnixStream::connect(BRIDGE_SOCKET_PATH);
     let cli_listener = UnixListener::bind(CLI_SOCKET_PATH).unwrap();
 
-    // Bridge thread - handles bridge connections and messages
+    let bridge_stream: Arc<Mutex<Option<UnixStream>>> = Arc::new(Mutex::new(None));
     let bridge_app_state = Arc::clone(&app_state);
-    
+
     thread::spawn(move || {
         for stream in bridge_listener.incoming() {
+            // So here I get a stream, and I should send it the initial state, 
+            // and then send the stream to the 
             match stream {
                 Ok(mut stream) => {
-                    println!("Bridge connected");
+                    // TODO: Connect a single stream and wrap in an Arc Mutex
+                    send_state_to_bridge(&mut stream, &bridge_app_state.lock().unwrap());
                     
-                    loop {
-                        match recv_length_prefixed_message(&mut stream) {
-                            Ok(message) => {
-                                let message_str = String::from_utf8_lossy(&message);
-                                println!("Bridge message received: {}", message_str);
-                                
-                                // Parse the message and handle get_state requests
-                                if let Ok(v) = serde_json::from_str::<Value>(&message_str) {
-                                    if v["action"] == "get_state" {
-                                        println!("Sending initial state to bridge");
-                                        let _ = send_state_to_bridge(&mut stream, &bridge_app_state);
-                                    }
-                                }
-                            },
-                            Err(_) => {
-                                println!("Bridge disconnected");
-                                break;
-                            }
-                        }
-                    }
+
+                    // TODO: Update the bridge stream to hold this new one
                 }
                 Err(e) => eprintln!("Bridge connection failed: {e}"),
             }
@@ -84,14 +69,16 @@ pub fn start_daemon(config_path: Option<String>) {
     //     // }
     // });
 
+    // let bridge_cli_stream = Arc::new(Mutex::new(bridge_cli_stream));
+
     for stream in cli_listener.incoming() {
         match stream {
             Ok(mut stream) => {
                 let cli_app_state = Arc::clone(&app_state);
-                let bridge_streams_ref = Arc::clone(&bridge_streams);
+                // let bridge_stream_clone = Arc::clone(&bridge_cli_stream);
 
                 thread::spawn(move || {
-                    handle_cli_request(&mut stream, cli_app_state, bridge_streams_ref);
+                    handle_cli_request(&mut stream, cli_app_state);
                 });
             }
             Err(e) => eprintln!("CLI connection failed: {e}"),
@@ -102,18 +89,26 @@ pub fn start_daemon(config_path: Option<String>) {
 fn handle_cli_request(
     cli_stream: &mut UnixStream,
     app_state: Arc<Mutex<ApplicationState>>,
-    bridge_streams: Arc<Mutex<Vec<UnixStream>>>,
+    bridge_stream: Arc<Mutex<Option<UnixStream>>>
 ) {
-    // Need to have better error handling here
-    let response = recv_length_prefixed_message(cli_stream).unwrap();
-    let response_str = String::from_utf8_lossy(&response);
+    // Read request
+    let response = match recv_length_prefixed_message(cli_stream) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to read CLI request: {e}");
+            return;
+        }
+    };
 
+    let response_str = String::from_utf8_lossy(&response);
     let v: Value = serde_json::from_str(response_str.trim()).unwrap_or_else(|_| {
         eprintln!("Invalid JSON from CLI.");
         serde_json::json!({})
     });
 
     let mut app_state_guard = app_state.lock().unwrap();
+
+
 
     match v["action"].as_str() {
         Some("list_blocks") => {
@@ -126,52 +121,76 @@ fn handle_cli_request(
             let message = serde_json::json!({ "blocks": string_map })
                 .to_string()
                 .into_bytes();
-            send_length_prefixed_message(cli_stream, &message).unwrap();
+
+            if let Err(e) = send_length_prefixed_message(cli_stream, &message) {
+                eprintln!("Failed to send list_blocks response: {e}");
+            }
         }
-        // I could even make a function purely for changing the state of the blocks
+
         Some("start_block") => {
-            let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Blocked);
+            if let Some(block_name) = v["name"].as_str() {
+                update_block(&mut app_state_guard, block_name, BlockState::Blocked);
 
-            // send_state_to_bridge(bridge_stream, &app_state);
-            let message = serde_json::json!({ "status": "started", "block": block_name })
-                .to_string()
-                .into_bytes();
-            send_length_prefixed_message(cli_stream, &message).unwrap();
+                // TODO; Unlock bridge stream here and send the message
+                // Send new state to bridge
+                // if let Err(e) = send_state_to_bridge(&bridge_stream, &app_state_guard) {
+                //     eprintln!("Failed to send state to bridge: {e}");
+                // }
+
+                let message = serde_json::json!({ "status": "started", "block": block_name })
+                    .to_string()
+                    .into_bytes();
+
+                if let Err(e) = send_length_prefixed_message(cli_stream, &message) {
+                    eprintln!("Failed to send CLI ack: {e}");
+                }
+            }
         }
+
         Some("stop_block") => {
-            let block_name = v["name"].as_str().unwrap().to_string();
-            update_block(&mut app_state_guard, &block_name, BlockState::Unblocked);
+            if let Some(block_name) = v["name"].as_str() {
+                update_block(&mut app_state_guard, block_name, BlockState::Unblocked);
 
-            println!("Are we getting stuck before or after this?");
-            // send_state_to_bridge(bridge_stream, &app_state);
-            println!("Are we getting stuck before or after this?");
-            let message = serde_json::json!({ "status": "stopped", "block": block_name })
-                .to_string()
-                .into_bytes();
-            send_length_prefixed_message(cli_stream, &message).unwrap();
+                // TODO; Unlock bridge stream here and send the message
+                // Send new state to bridge
+                // Send new state to bridge
+                // if let Err(e) = send_state_to_bridge(&bridge_stream, &app_state_guard) {
+                //     eprintln!("Failed to send state to bridge: {e}");
+                // }
+
+                let message = serde_json::json!({ "status": "stopped", "block": block_name })
+                    .to_string()
+                    .into_bytes();
+
+                if let Err(e) = send_length_prefixed_message(cli_stream, &message) {
+                    eprintln!("Failed to send CLI ack: {e}");
+                }
+            }
         }
+
         _ => eprintln!("Unknown action in CLI request."),
     }
 }
 
+/// Send the current application state to the bridge
 pub fn send_state_to_bridge(
     stream: &mut UnixStream,
-    app_state: &Arc<Mutex<ApplicationState>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Are we being held hostage by the lock?");
-    let app_state_guard = app_state.lock().unwrap();
-    println!("Are we being held hostage by the lock?");
+    app_state: &ApplicationState,
+) -> io::Result<()> {
+    // Serialize the state
+    let string_map: HashMap<String, BlockState> = app_state
+        .blocks
+        .iter()
+        .map(|(name, block)| (name.clone(), block.block_state))
+        .collect();
 
-    let state_message = json!({
+    let message = serde_json::json!({
         "type": "state_update",
-        "state": {
-            "blocks": app_state_guard.blocks
-        }
-    });
+        "blocks": string_map
+    })
+    .to_string()
+    .into_bytes();
 
-    let message_bytes = state_message.to_string().into_bytes();
-    send_length_prefixed_message(stream, &message_bytes)?;
-
-    Ok(())
+    // Send over the bridge
+    send_length_prefixed_message(stream, &message)
 }
