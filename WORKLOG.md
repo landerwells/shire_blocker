@@ -1,20 +1,6 @@
 # Shire Blocker Development Log
 
-I have shifted back to having the state held in javascript for better response times, but that has lead to a whole host of other problems. I want to track those problems here. 
-
-Extension:
-- Make entirely useless without the daemon connected
-
-Bridge:
-- Resolve disconnecting from extension randomly (I need to find the code that effectively sent when the bridge was connected or disconnected from the daemon. That is what I will use as the base for the updates that I want.)
-- Send messages when the daemon is connected or disconnected to enable or disable functionality
-
-Daemon:
--
-
 ## Next Priority Tasks
-- Getting some blocking in the bridge for some reason? I especially think there is blocking on starting the daemon multiple times
-- Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
 - Need better error handling and propagation, especially when starting the daemon
 - Maybe locking persistence first
 - Write unit and integration tests for almost every use case for more efficient workflow
@@ -26,6 +12,10 @@ Daemon:
 ---
 
 ## Daily Work Log
+
+### September 4, 2025
+**Accomplished:**
+- After many days, merged persistent-bridge back into master, completing all basic functionality
 
 ### August 20, 2025
 **Accomplished:**

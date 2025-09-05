@@ -2,7 +2,6 @@ use crate::config;
 use crate::state::*;
 // use chrono::Datelike;
 use serde_json::Value;
-// use serde_json::json;
 use shire_blocker::recv_length_prefixed_message;
 use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
@@ -34,16 +33,13 @@ pub fn start_daemon(config_path: Option<String>) {
 
     thread::spawn(move || {
         for stream in bridge_listener.incoming() {
-            // So here I get a stream, and I should send it the initial state, 
-            // and then send the stream to the 
             match stream {
                 Ok(stream) => {
-                    // Send initial state to the bridge
                     let mut stream_copy = stream.try_clone().expect("Failed to clone stream");
+
                     // TODO: properly error handle this?
                     let _ = send_state_to_bridge(&mut stream_copy, &bridge_app_state.lock().unwrap());
                     
-                    // Store the stream in the Arc<Mutex<Option<UnixStream>>>
                     *bridge_stream_for_thread.lock().unwrap() = Some(stream);
                 }
                 Err(e) => eprintln!("Bridge connection failed: {e}"),
@@ -196,6 +192,5 @@ pub fn send_state_to_bridge(
     .to_string()
     .into_bytes();
 
-    // Send over the bridge
     send_length_prefixed_message(stream, &message)
 }

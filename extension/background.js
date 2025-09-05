@@ -172,14 +172,18 @@ function urlMatches(url, pattern) {
  * Checks all open tabs against current blocking state
  */
 function checkAllTabsAgainstState() {
-  if (!blocks || blocks.size === 0) return;
-
   browser.tabs.query({}).then(tabs => {
     tabs.forEach(tab => {
       if (tab.url && !tab.url.startsWith("about:") && !tab.url.startsWith("moz-extension:")) {
         if (isUrlBlocked(tab.url)) {
           browser.tabs.sendMessage(tab.id, {
             action: "blockPage",
+            url: tab.url
+          }).catch(() => {});
+        } else {
+          // Send unblock message in case this tab was previously blocked
+          browser.tabs.sendMessage(tab.id, {
+            action: "unblockPage",
             url: tab.url
           }).catch(() => {});
         }
