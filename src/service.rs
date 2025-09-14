@@ -3,7 +3,8 @@ use std::env;
 use std::io;
 use std::path::PathBuf;
 use std::process::Command;
-use std::{fs, io::Error};
+use std::time::Duration;
+use std::{fs, io::Error, thread};
 
 pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     let exe_path = env::current_exe()?;
@@ -87,6 +88,9 @@ pub fn start() -> Result<(), Error> {
         // Automate the Linux systemd commands that users previously had to run manually
         run_systemd_commands()?;
     }
+
+    // Verify the daemon actually started successfully
+    verify_daemon_started()?;
 
     Ok(())
 }
@@ -420,4 +424,29 @@ fn remove_mozilla_manifest() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+// TODO: Eventually I think I should move the verification for the configuration
+// file into the cli, that way when trying to start, I can get detailed error 
+// messages without needing to log to the file.
+fn verify_daemon_started() -> Result<(), Error> {
+    use std::os::unix::net::UnixStream;
+    
+    // Give the daemon a moment to start up, but only try once
+    thread::sleep(Duration::from_millis(1000));
+    
+    // Try to connect to the daemon socket
+    match UnixStream::connect("/tmp/shire_cli.sock") {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            let error_message = format!(
+                "Failed to start shire daemon. Socket connection failed.\n\n\
+                Please check the error logs for more details:\n\
+                - Error log: /tmp/shire.stderr.log\n\
+                - Output log: /tmp/shire.stdout.log"
+            );
+            
+            Err(Error::new(io::ErrorKind::Other, error_message))
+        }
+    }
 }

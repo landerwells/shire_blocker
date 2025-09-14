@@ -1,6 +1,5 @@
 use crate::config::Config;
-use chrono::NaiveTime;
-use chrono::Weekday;
+use chrono::{Datelike, NaiveTime, Weekday};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -133,7 +132,11 @@ pub fn initialize_application_state(config: Config) -> Arc<Mutex<ApplicationStat
     }
 
     weekly_schedule.sort();
-    application_state.lock().unwrap().schedule = weekly_schedule;
+    application_state.lock().unwrap().schedule = weekly_schedule.clone();
+
+    // Activate blocks that should be currently active based on schedule
+    activate_scheduled_blocks(&application_state, &weekly_schedule);
+
     application_state
 }
 
@@ -185,4 +188,74 @@ fn create_event(
         time,
         action,
     }
+}
+
+fn activate_scheduled_blocks(
+    application_state: &Arc<Mutex<ApplicationState>>, 
+    weekly_schedule: &[Event]
+) {
+    let now = chrono::Local::now();
+    let current_weekday = OrderableWeekday(now.weekday());
+    let current_time = now.time();
+
+    // Find all blocks that should be currently active
+    let mut active_blocks = std::collections::HashSet::new();
+
+    for block_name in get_block_names(application_state) {
+        if is_block_currently_scheduled(&block_name, current_weekday, current_time, weekly_schedule) {
+            active_blocks.insert(block_name);
+        }
+    }
+
+    // Activate the blocks that should be active
+    let mut app_state = application_state.lock().unwrap();
+    for block_name in active_blocks {
+        update_block(&mut app_state, &block_name, BlockState::Blocked);
+        println!("Activated scheduled block: {}", block_name);
+    }
+}
+
+fn get_block_names(application_state: &Arc<Mutex<ApplicationState>>) -> Vec<String> {
+    application_state
+        .lock()
+        .unwrap()
+        .blocks
+        .keys()
+        .cloned()
+        .collect()
+}
+
+fn is_block_currently_scheduled(
+    block_name: &str,
+    current_weekday: OrderableWeekday,
+    current_time: NaiveTime,
+    weekly_schedule: &[Event]
+) -> bool {
+    // Find the most recent event for this block that occurred before or at current time
+    let mut most_recent_event = None;
+    
+    // Look for events today or earlier in the week
+    for event in weekly_schedule.iter().rev() {
+        if event.block == block_name {
+            if event.day < current_weekday || (event.day == current_weekday && event.time <= current_time) {
+                most_recent_event = Some(event);
+                break;
+            }
+        }
+    }
+    
+    // If no event found this week, look at the end of last week
+    if most_recent_event.is_none() {
+        for event in weekly_schedule.iter().rev() {
+            if event.block == block_name {
+                most_recent_event = Some(event);
+                break;
+            }
+        }
+    }
+    
+    // If the most recent event was a StartBlock, the block should be active
+    most_recent_event
+        .map(|event| matches!(event.action, ScheduleAction::StartBlock))
+        .unwrap_or(false)
 }

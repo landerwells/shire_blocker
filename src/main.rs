@@ -65,7 +65,6 @@ enum BlockAction {
     Stop { name: String },
     Lock {
         name: String,
-        #[arg(long)]
         // Need to make this more obvious to users
         lock: Option<String>, // e.g. duration
     },
@@ -81,6 +80,8 @@ enum ScheduleAction {
 enum ServiceAction {
     /// Start the shire service (install and start daemon)
     Start,
+    /// Return status of the shire service
+    Status,
     /// Stop the shire service
     Stop,
     /// Restart the shire service
@@ -129,6 +130,7 @@ fn main() {
             }
         },
         Commands::Schedule { action } => match action {
+            // TODO: Need to implement listing of schedule
             ScheduleAction::List => {
                 println!("Listing the block schedule...");
             }
@@ -140,6 +142,9 @@ fn main() {
                     Ok(_) => println!("Shire service started successfully."),
                     Err(e) => eprintln!("Failed to start shire service: {e}"),
                 }
+            }
+            ServiceAction::Status => {
+                println!("Handling the status of the service!");
             }
             ServiceAction::Stop => {
                 println!("Stopping shire service...");

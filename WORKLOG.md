@@ -7,6 +7,7 @@
 
 ## Next Priority Tasks
 - Persistence of locks via Rusqlite database integration
+- Cleaning up codebase and better error handling
 - Scheduling of blocks
 
 ## Future Features
@@ -16,6 +17,14 @@
 ---
 
 ## Daily Work Log
+
+### September 13, 2025
+**Accomplished:**
+- Added first implementation of scheduling, needs additional work and refactoring
+
+### September 10, 2025
+**Accomplished:**
+- Implemented primitive error checking for starting the daemon
 
 ### September 5, 2025
 **Accomplished:**
