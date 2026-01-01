@@ -51,6 +51,10 @@ pub fn install_ctl(ctl: &launchctl::Service) -> Result<(), Error> {
     Ok(())
 }
 
+pub fn restart() {
+    println!("Restarting the service");
+}
+
 pub fn start() -> Result<(), Error> {
     // Get the user's home directory for the plist file
     let home_dir = dirs::home_dir().ok_or_else(|| {

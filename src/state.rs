@@ -3,7 +3,6 @@ use chrono::NaiveTime;
 use chrono::Weekday;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc;
@@ -48,7 +47,7 @@ pub struct Block {
 pub enum BlockState {
     Unblocked,
     Blocked,
-    BlockedWithLock,
+    // BlockedWithLock,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -70,7 +69,7 @@ const DAY_MAP: &[(&str, Weekday)] = &[
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum ScheduleAction {
+pub enum ScheduleAction {
     StartBlock,
     EndBlock,
 }

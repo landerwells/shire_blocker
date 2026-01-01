@@ -9,12 +9,15 @@ use shire_blocker::send_length_prefixed_message;
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::net::UnixListener;
-use std::sync::{Arc, Mutex, mpsc};
 use std::os::unix::net::UnixStream;
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
 const BRIDGE_SOCKET_PATH: &str = "/tmp/shire_bridge.sock";
 const CLI_SOCKET_PATH: &str = "/tmp/shire_cli.sock";
+
+// Definitely want to create a Daemon struct, not sure what it needs to hold
+// but it might make sense for now to bundle information
 
 pub fn start_daemon(config_path: Option<String>) {
     let config = config::parse_config(config_path).unwrap();
@@ -33,12 +36,12 @@ pub fn start_daemon(config_path: Option<String>) {
 
     // Bridge thread - Sender
     // thread::spawn(move || {
-        // Send initial state
-        // if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
-        //     eprintln!("Failed to send initial state to bridge: {e}");
-        // }
+    // Send initial state
+    // if let Err(e) = send_state_to_bridge(&mut bridge_stream, &bridge_app_state) {
+    //     eprintln!("Failed to send initial state to bridge: {e}");
+    // }
 
-        // Wait for state change notifications
+    // Wait for state change notifications
     // });
 
     // This thread simply runs once on startup and then exits
@@ -48,7 +51,7 @@ pub fn start_daemon(config_path: Option<String>) {
         let (mut stream, _addr) = bridge_listener.accept().unwrap();
         // let _ = bridge_state_tx.send();
 
-        while let Ok(_) = state_rx.recv() {
+        while state_rx.recv().is_ok() {
             if let Err(e) = send_state_to_bridge(&mut stream, &bridge_app_state) {
                 eprintln!("Failed to send state update to bridge: {e}");
                 break;
@@ -63,10 +66,10 @@ pub fn start_daemon(config_path: Option<String>) {
 
         // Iterate through schedule until the next element
         // Find the next event (greater than now)
-        let mut next_event = None;
+        // let mut next_event = None;
         for ev in &schedule_app_state.lock().unwrap().schedule {
             if ev.day > current_day || (ev.day == current_day && ev.time > current_time) {
-                next_event = Some(ev.clone());
+                // next_event = Some(ev.clone());
                 break;
             }
         }
