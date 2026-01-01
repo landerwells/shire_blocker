@@ -28,7 +28,6 @@ enum Commands {
         #[command(subcommand)]
         action: BlockAction,
     },
-    /// Manage the block scheduler
     // Schedule {
     //     #[command(subcommand)]
     //     action: ScheduleAction,
