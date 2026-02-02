@@ -14,13 +14,9 @@ const RESET: &str = "\x1b[0m";
 
 const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
 
-pub fn start_block(_name: &str, _lock: Option<&str>) {
+pub fn start_block(_name: &str, _lock: Option<&str>) {}
 
-}
-
-pub fn stop_block(_name: &str) {
-
-}
+pub fn stop_block(_name: &str) {}
 
 pub fn send_action_with_params(
     action: &str,
@@ -40,9 +36,9 @@ pub fn send_action_with_params(
 
     // If extra params provided, merge them in
     // if let Some(map) = params {
-        for (k, v) in params {
-            message_json[k] = v;
-        }
+    for (k, v) in params {
+        message_json[k] = v;
+    }
     // }
 
     let message_bytes = message_json.to_string().into_bytes();

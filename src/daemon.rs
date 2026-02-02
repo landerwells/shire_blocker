@@ -69,7 +69,7 @@ pub fn start_daemon(config_path: Option<String>) {
         // let mut next_event = None;
         for ev in &schedule_app_state.lock().unwrap().schedule {
             if ev.day > current_day || (ev.day == current_day && ev.time > current_time) {
-                // next_event = Some(ev.clone());
+                next_event = Some(ev.clone());
                 break;
             }
         }
