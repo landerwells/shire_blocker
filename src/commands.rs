@@ -12,54 +12,38 @@ const YELLOW: &str = "\x1b[33m";
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
 
-const SOCKET_PATH: &str = "/tmp/shire_cli.sock";
-
-pub fn start_block(_name: &str, _lock: Option<&str>) {}
-
-pub fn stop_block(_name: &str) {}
-
 pub fn send_action_with_params(
+    stream: &mut UnixStream,
     action: &str,
-    name: Option<&str>,
-    lock: Option<&str>,
+    params: Option<HashMap<&str, Value>>,
 ) -> io::Result<String> {
-    let mut params = HashMap::new();
-    params.insert("name", json!(name));
-    if let Some(lock_str) = lock {
-        params.insert("lock", json!(lock_str));
-    }
-
-    let mut stream = UnixStream::connect(SOCKET_PATH)
-        .expect("Failed to connect to the shire service socket at {SOCKET_PATH}: {e}");
     // Build base JSON with the action
     let mut message_json = json!({ "action": action });
 
     // If extra params provided, merge them in
-    // if let Some(map) = params {
-    for (k, v) in params {
-        message_json[k] = v;
+    if let Some(map) = params {
+        for (k, v) in map {
+            message_json[k] = v;
+        }
     }
-    // }
 
     let message_bytes = message_json.to_string().into_bytes();
-    send_length_prefixed_message(&mut stream, &message_bytes)?;
+    send_length_prefixed_message(stream, &message_bytes)?;
 
-    let bytes = recv_length_prefixed_message(&mut stream)?;
+    let bytes = recv_length_prefixed_message(stream)?;
     let response =
         String::from_utf8(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     Ok(response)
 }
-
-pub fn list_blocks() -> io::Result<()> {
-    let response = send_action_with_params("list_blocks", None, None)?;
+pub fn list_blocks(stream: &mut UnixStream) -> io::Result<()> {
+    let response = send_action_with_params(stream, "list_blocks", None)?;
     let v: Value = serde_json::from_str(&response).expect("Invalid JSON");
 
     print_formatted_block_output(v);
     Ok(())
 }
 
-// Do I really even need this function?
 fn print_formatted_block_output(response: Value) {
     // Ensure blocks is an object
     let blocks = match response["blocks"].as_object() {

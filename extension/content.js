@@ -2,6 +2,9 @@
 (function () {
   'use strict';
 
+  // Track if the current page is showing blocked content
+  let isShowingBlockedPage = false;
+
   // Check if this page is blocked
   function checkIfBlocked() {
     const currentUrl = window.location.href;
@@ -26,6 +29,9 @@
 
   // Display a blank page with blocking message
   function displayBlockedPage() {
+    // Set flag to track that we're showing blocked content
+    isShowingBlockedPage = true;
+    
     // Clear the entire page
     document.documentElement.innerHTML = '';
 
@@ -107,6 +113,13 @@
     if (message.action === "blockPage") {
       console.log("Received block message from background script");
       displayBlockedPage();
+    } else if (message.action === "unblockPage") {
+      console.log("Received unblock message from background script");
+      // Only reload if we're currently showing a blocked page
+      if (isShowingBlockedPage) {
+        console.log("Page was blocked, reloading to show actual content");
+        window.location.reload();
+      }
     }
   });
 

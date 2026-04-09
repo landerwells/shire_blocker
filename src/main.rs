@@ -3,15 +3,20 @@ mod config;
 mod daemon;
 mod service;
 mod state;
-
-use crate::daemon::start_daemon;
-
 use clap::{Parser, Subcommand};
+use commands::list_blocks;
+use serde_json::json;
+use std::collections::HashMap;
+use std::os::unix::net::UnixStream;
+use shire_blocker::CLI_SOCKET_PATH;
+
+use crate::commands::*;
+use crate::daemon::start_daemon;
 
 #[derive(Parser)]
 #[command(
     name = "shire",
-    version = "0.0",
+    version = "1.0",
     author = "Lander Wells",
     about = "A tool for managing blocks and services"
 )]
@@ -28,10 +33,11 @@ enum Commands {
         #[command(subcommand)]
         action: BlockAction,
     },
-    // Schedule {
-    //     #[command(subcommand)]
-    //     action: ScheduleAction,
-    // },
+    /// Manage the block scheduler
+    Schedule {
+        #[command(subcommand)]
+        action: ScheduleAction,
+    },
     /// Manage the shire service
     Service {
         #[command(subcommand)]
@@ -48,7 +54,7 @@ enum Commands {
 enum BlockAction {
     /// List all available blocks
     List,
-    /// Start a block with or without a lock
+    /// Start a block
     Start {
         name: String,
         #[arg(long)]
@@ -57,18 +63,25 @@ enum BlockAction {
     },
     /// Stop a block
     Stop { name: String },
+    Lock {
+        name: String,
+        // Need to make this more obvious to users
+        lock: Option<String>, // e.g. duration
+    },
 }
 
-// #[derive(Subcommand)]
-// enum ScheduleAction {
-//     /// List the schedule
-//     List,
-// }
+#[derive(Subcommand)]
+enum ScheduleAction {
+    /// List the schedule
+    List,
+}
 
 #[derive(Subcommand)]
 enum ServiceAction {
     /// Start the shire service (install and start daemon)
     Start,
+    /// Return status of the shire service
+    Status,
     /// Stop the shire service
     Stop,
     /// Restart the shire service
@@ -83,33 +96,82 @@ fn main() {
     match args.command {
         Commands::Block { action } => match action {
             BlockAction::List => {
-                let _ = commands::list_blocks();
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire daemon at {CLI_SOCKET_PATH}: {e}");
+                list_blocks(&mut stream).expect("Failed to list available blocks");
             }
             BlockAction::Start { name, lock } => {
-                commands::start_block(&name, lock.as_deref());
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
+
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                if let Some(lock_str) = lock {
+                    params.insert("lock", json!(lock_str));
+                }
+                send_action_with_params(&mut stream, "start_block", Some(params)).unwrap();
             }
             BlockAction::Stop { name } => {
-                commands::stop_block(&name);
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
+
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                send_action_with_params(&mut stream, "stop_block", Some(params)).unwrap();
+            }
+            BlockAction::Lock { name, lock } => {
+                let mut stream = UnixStream::connect(CLI_SOCKET_PATH)
+                    .expect("Failed to connect to the shire service socket at {CLI_SOCKET_PATH}: {e}");
+
+                let mut params = HashMap::new();
+                params.insert("name", json!(name));
+                params.insert("lock", json!(lock));
+                send_action_with_params(&mut stream, "lock_block", Some(params)).unwrap();
             }
         },
-        // Commands::Schedule { action } => match action {
-        //     ScheduleAction::List => {
-        //         println!("Listing the block schedule...");
-        //     }
-        // },
-        // TODO: Better error handling for these events
+        Commands::Schedule { action } => match action {
+            // TODO: Need to implement listing of schedule
+            ScheduleAction::List => {
+                println!("Listing the block schedule...");
+            }
+        },
         Commands::Service { action } => match action {
             ServiceAction::Start => {
-                let _ = service::start();
+                println!("Starting shire service (install and start daemon)...");
+                match service::start() {
+                    Ok(_) => println!("Shire service started successfully."),
+                    Err(e) => eprintln!("Failed to start shire service: {e}"),
+                }
+            }
+            ServiceAction::Status => {
+                println!("Handling the status of the service!");
             }
             ServiceAction::Stop => {
-                let _ = service::stop();
+                println!("Stopping shire service...");
+                match service::stop() {
+                    Ok(_) => println!("Shire service stopped successfully."),
+                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                }
             }
             ServiceAction::Restart => {
-                service::restart();
+                println!("Restarting shire service...");
+                match service::stop() {
+                    Ok(_) => {
+                        println!("Shire service stopped successfully.");
+                        match service::start() {
+                            Ok(_) => println!("Shire service restarted successfully."),
+                            Err(e) => eprintln!("Failed to start shire service after stop: {e}"),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to stop shire service: {e}"),
+                }
             }
             ServiceAction::Uninstall => {
-                let _ = service::uninstall();
+                println!("Uninstalling shire service...");
+                match service::uninstall() {
+                    Ok(_) => println!("Shire service uninstalled successfully."),
+                    Err(e) => eprintln!("Failed to uninstall shire service: {e}"),
+                }
             }
         },
         Commands::Daemon { config } => {

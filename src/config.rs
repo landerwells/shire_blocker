@@ -121,36 +121,6 @@ fn validate_time(time_str: &str) -> Result<(i32, i32), String> {
     Ok((hour, minute))
 }
 
-// The validation can be removed from this function in favor of validating in
-// config.rs, and instead this can just be to parse out the hour and minute.
-// Should be moved to state.rs
-// fn parse_time(time_str: &str) -> Result<(i32, i32), String> {
-//     if time_str.len() < 5 || !time_str.contains(':') {
-//         return Err(format!("Invalid time format: {time_str}"));
-//     }
-//
-//     let parts: Vec<&str> = time_str.split(':').collect();
-//     if parts.len() != 2 {
-//         return Err(format!("Invalid time format: {time_str}"));
-//     }
-//
-//     let hour = parts[0]
-//         .parse::<i32>()
-//         .map_err(|_| format!("Invalid hour: {}", parts[0]))?;
-//     let minute = parts[1]
-//         .parse::<i32>()
-//         .map_err(|_| format!("Invalid minute: {}", parts[1]))?;
-//
-//     if !(0..=23).contains(&hour) {
-//         return Err(format!("Hour out of range (0-23): {hour}"));
-//     }
-//     if !(0..=59).contains(&minute) {
-//         return Err(format!("Minute out of range (0-59): {minute}"));
-//     }
-//
-//     Ok((hour, minute))
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;

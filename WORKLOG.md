@@ -1,9 +1,22 @@
 # Shire Blocker Development Log
-## Priority Tasks
-- Write unit and integration tests for almost every use case for more efficient workflow, also to help nail down the intended behavior of the application.
-- Due to current architectural constraints, starting a block does not cause blacklisted sites to actually get blocked. This is because of the one-way message sending of the current bridge design. If this were changed to be a multi-directional, it would potentially eliminate this issue. It is worth looking.
-- Need better error handling and propagation, especially when starting the daemon
-- Maybe locking persistence first
+
+Getting back to working on Shire Blocker, looks like a lot of the code needs to be cleaned up.
+I would like to start using tokio as well. The highest priority task right now is to get 
+things back to working again, clean up the connection between the application and bridge, and
+switch to using tokio for async.
+
+I am looking at around 1.5k lines of code right now. I think I can get this down
+a substantial amount with a rewrite, and then build from there.
+
+## Smaller optional fixes, wouldn't mind if someone contributed these
+- Unit tests
+- Fixing the tab loading times after getting a state update from the daemon
+- Incremental state updates from the daemon instead of sending the entire state, send messages that add or remove things from the blacklist/whitelist
+
+## Next Priority Tasks
+- Persistence of locks via Rusqlite database integration
+- Cleaning up codebase and better error handling
+- Scheduling of blocks
 
 ## Future Features
 - Landing page improvements: display which block is preventing the current website, or multiple blocks, and if the block is due to a schedule. Possibly dark/light theme
@@ -13,9 +26,22 @@
 
 ## Daily Work Log
 
-### December 31, 2025
+### September 13, 2025
 **Accomplished:**
-- Cleaned up main.rs, removed all compilation warnings
+- Added first implementation of scheduling, needs additional work and refactoring
+
+### September 10, 2025
+**Accomplished:**
+- Implemented primitive error checking for starting the daemon
+
+### September 5, 2025
+**Accomplished:**
+- Moved socket addresses into lib.rs for re-use in different files
+
+### September 4, 2025
+**Accomplished:**
+- After many days, merged persistent-bridge back into master, completing all basic functionality
+- Added support for automatically refreshing tabs after stopping a block
 
 ### August 20, 2025
 **Accomplished:**
