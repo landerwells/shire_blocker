@@ -4,17 +4,6 @@ use std::thread;
 use std::time::Duration;
 use shire_blocker::*;
 
-// fn read_browser_message() -> io::Result<Vec<u8>> {
-//     let mut length_buf = [0u8; 4];
-//     io::stdin().read_exact(&mut length_buf)?;
-//     let length = u32::from_le_bytes(length_buf);
-//
-//     let mut message_buf = vec![0u8; length as usize];
-//     io::stdin().read_exact(&mut message_buf)?;
-//
-//     Ok(message_buf)
-// }
-
 fn write_browser_message(message: &str) -> io::Result<()> {
     let bytes = message.as_bytes();
     let len = bytes.len() as u32;
@@ -24,44 +13,36 @@ fn write_browser_message(message: &str) -> io::Result<()> {
     Ok(())
 }
 
-
 fn main() -> io::Result<()> {
-    let mut connected = false;
-    write_browser_message(r#"{"status":"connected"}"#)?;
+    // Tell the browser extension the bridge process has started.
+    write_browser_message(r#"{"status":"starting"}"#)?;
+
+    let mut backoff = Duration::from_millis(100);
+    const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
     loop {
         match UnixStream::connect(BRIDGE_SOCKET_PATH) {
             Ok(mut stream) => {
-                if !connected {
-                    // connected = true;
-                    write_browser_message(r#"{"status":"connected"}"#)?;
-                    
-                    // ask daemon for state
-                    let request = r#"{"action":"get_state"}"#;
-                    send_length_prefixed_message(&mut stream, request.as_bytes())?;
-                }
+                backoff = Duration::from_millis(100); // reset backoff on successful connect
+                write_browser_message(r#"{"status":"connected"}"#)?;
 
-                // relay daemon → browser
+                // Relay daemon state updates to the browser. The daemon pushes
+                // state proactively on connect and after every block change.
                 loop {
                     match recv_length_prefixed_message(&mut stream) {
                         Ok(response) => {
-                            let response_str = String::from_utf8_lossy(&response);
-                            write_browser_message(&response_str)?;
+                            write_browser_message(&String::from_utf8_lossy(&response))?;
                         }
                         Err(_) => {
-                            connected = false;
                             write_browser_message(r#"{"status":"disconnected"}"#)?;
-                            break; // drop inner loop, reconnect
+                            break;
                         }
                     }
                 }
             }
             Err(_) => {
-                if connected {
-                    connected = false;
-                    write_browser_message(r#"{"status":"disconnected"}"#)?;
-                }
-                thread::sleep(Duration::from_secs(1)); // retry later
+                thread::sleep(backoff);
+                backoff = (backoff * 2).min(MAX_BACKOFF);
             }
         }
     }

@@ -90,7 +90,8 @@ enum ServiceAction {
     Uninstall,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
     match args.command {
@@ -175,7 +176,7 @@ fn main() {
             }
         },
         Commands::Daemon { config } => {
-            start_daemon(config);
+            start_daemon(config).await;
         }
     }
 }
